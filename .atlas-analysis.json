@@ -1,0 +1,123 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Fortnite Replay Decompressor",
+  "projectDescription": "A high-performance C# library for parsing and analyzing Fortnite replay files with comprehensive game data extraction.",
+  "theme": "aspen",
+  "primaryColor": "#7B68EE",
+  "lightColor": "#9B88FF",
+  "darkColor": "#5B48CE",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "quickstart"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/replay-structure",
+              "concepts/parse-types",
+              "concepts/encryption"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/reading-replays",
+              "guides/configuration",
+              "guides/extracting-player-data",
+              "guides/game-events",
+              "guides/performance-optimization"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/custom-parsing",
+              "advanced/net-field-exports",
+              "advanced/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/replay-reader",
+              "api/fortnite-replay",
+              "api/fortnite-replay-settings"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/models/game-information",
+              "api/models/player",
+              "api/models/player-elimination",
+              "api/models/game-state",
+              "api/models/stats"
+            ]
+          },
+          {
+            "group": "Enums",
+            "pages": [
+              "api/enums/parse-type",
+              "api/enums/location-types",
+              "api/enums/player-types"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Parse Fortnite replay files with multiple parse modes (Minimal, Normal, Full)",
+    "Extract comprehensive game data including players, eliminations, stats, and events",
+    "Support for encrypted replay files with automatic decryption",
+    "High-performance parsing with configurable settings to ignore unnecessary data",
+    "Detailed player tracking including locations, inventory, health, and weapon switches",
+    "Game event extraction (eliminations, match stats, team stats, safe zones)",
+    "Built on Unreal Engine network packet parsing foundation",
+    "Flexible filtering options for performance optimization"
+  ],
+  "publicApiSurface": [
+    "ReplayReader",
+    "ReplayReader.ReadReplay(string fileName, ParseType parseType)",
+    "ReplayReader.ReadReplay(Stream stream, ParseType parseType)",
+    "ReplayReader.SetParseType(ParsingGroup group, ParseType type)",
+    "FortniteReplay",
+    "FortniteReplay.Eliminations",
+    "FortniteReplay.Stats",
+    "FortniteReplay.TeamStats",
+    "FortniteReplay.GameInformation",
+    "FortniteReplaySettings",
+    "FortniteReplaySettings.PlayerLocationType",
+    "FortniteReplaySettings.LocationChangeDeltaMS",
+    "FortniteReplaySettings.IgnoreHealth",
+    "FortniteReplaySettings.IgnoreContainers",
+    "FortniteReplaySettings.IgnoreShots",
+    "FortniteReplaySettings.IgnoreInventory",
+    "FortniteReplaySettings.IgnoreFloorLoot",
+    "FortniteReplaySettings.IgnoreWeaponSwitches",
+    "ParseType.Minimal",
+    "ParseType.Normal",
+    "ParseType.Full",
+    "LocationTypes.All",
+    "LocationTypes.Team",
+    "LocationTypes.User",
+    "LocationTypes.None",
+    "GameInformation.Players",
+    "GameInformation.Teams",
+    "GameInformation.SafeZones",
+    "GameInformation.SupplyDrops",
+    "GameInformation.FloorLoot",
+    "GameInformation.KillFeed",
+    "GameInformation.PlayerStructures"
+  ]
+}
