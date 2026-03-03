@@ -1,0 +1,292 @@
+---
+title: 'FortniteReplaySettings'
+description: 'Configuration class for controlling replay parsing behavior'
+---
+
+The `FortniteReplaySettings` class provides fine-grained control over what data is parsed and collected from Fortnite replay files. Use these settings to optimize performance by ignoring data you don't need.
+
+## Properties
+
+<ParamField path="PlayerLocationType" type="LocationTypes" default="LocationTypes.All">
+  Controls which players' location data is collected during parsing.
+  
+  **Values:**
+  - `LocationTypes.All` - Grab all possible locations from any player
+  - `LocationTypes.Team` - Grab locations from replay owner and all teammates
+  - `LocationTypes.User` - Only grab locations from replay owner
+  - `LocationTypes.None` - Grab no locations
+  
+  Use `Team` or `User` for significant performance improvements in replays with many players.
+</ParamField>
+
+<ParamField path="LocationChangeDeltaMS" type="int" default="0">
+  Minimum time in milliseconds required between location updates for a player before saving a new location point.
+  
+  **Values:**
+  - `0` - Grab all location updates (highest accuracy, most data)
+  - `> 0` - Only save location if this many milliseconds have passed since last update
+  
+  **Example:** Setting to `1000` means locations are only saved once per second, significantly reducing data volume.
+</ParamField>
+
+<ParamField path="IgnoreHealth" type="bool" default="false">
+  When `true`, ignores all health and shield updates for players.
+  
+  Set to `true` if you don't need to track player health changes throughout the match.
+</ParamField>
+
+<ParamField path="IgnoreContainers" type="bool" default="false">
+  When `true`, ignores container interactions (chests, ammo boxes, etc.).
+  
+  Set to `true` if you don't need to track what containers players opened.
+</ParamField>
+
+<ParamField path="IgnoreShots" type="bool" default="false">
+  When `true`, ignores batched damage events and shot data.
+  
+  Set to `true` if you don't need detailed combat data beyond eliminations.
+</ParamField>
+
+<ParamField path="IgnoreInventory" type="bool" default="false">
+  When `true`, ignores inventory changes and item pickups.
+  
+  Set to `true` if you don't need to track what items players collected.
+</ParamField>
+
+<ParamField path="IgnoreFloorLoot" type="bool" default="false">
+  When `true`, ignores floor loot spawns and pickups.
+  
+  Set to `true` if you don't need to track item spawns on the map. This can significantly improve parsing performance.
+</ParamField>
+
+<ParamField path="IgnoreWeaponSwitches" type="bool" default="false">
+  When `true`, ignores weapon switch events for players.
+  
+  Set to `true` if you don't need to track when players change weapons.
+</ParamField>
+
+## Usage Examples
+
+### Default Settings
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Use default settings (all data collected)
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay");
+```
+
+### Performance-Optimized Settings
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Optimize for speed - only collect essential data
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.User,  // Only track replay owner
+    LocationChangeDeltaMS = 1000,             // One location per second
+    IgnoreHealth = true,
+    IgnoreContainers = true,
+    IgnoreShots = true,
+    IgnoreInventory = true,
+    IgnoreFloorLoot = true,
+    IgnoreWeaponSwitches = true
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Minimal
+);
+```
+
+### Combat Analysis Settings
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Settings for analyzing combat events
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 100,      // High accuracy for combat
+    IgnoreHealth = false,             // Track health changes
+    IgnoreShots = false,              // Track damage events
+    IgnoreContainers = true,          // Don't need container data
+    IgnoreFloorLoot = true,           // Don't need loot spawns
+    IgnoreWeaponSwitches = false      // Track weapon usage
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Full
+);
+```
+
+### Team Analysis Settings
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Settings for analyzing team gameplay
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.Team,  // Track all teammates
+    LocationChangeDeltaMS = 500,              // Balanced accuracy
+    IgnoreHealth = false,
+    IgnoreInventory = false,
+    IgnoreContainers = false,
+    IgnoreFloorLoot = true,                   // Skip floor loot for performance
+    IgnoreShots = false,
+    IgnoreWeaponSwitches = false
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay("path/to/replay.replay");
+```
+
+### Minimal Data Collection
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Only collect elimination events and basic stats
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None,  // No location tracking
+    IgnoreHealth = true,
+    IgnoreContainers = true,
+    IgnoreShots = true,
+    IgnoreInventory = true,
+    IgnoreFloorLoot = true,
+    IgnoreWeaponSwitches = true
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Minimal
+);
+
+// Still have access to:
+// - replay.Eliminations
+// - replay.Stats
+// - replay.TeamStats
+```
+
+### Full Data Collection
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Collect everything with high accuracy
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 0,        // All location updates
+    IgnoreHealth = false,
+    IgnoreContainers = false,
+    IgnoreShots = false,
+    IgnoreInventory = false,
+    IgnoreFloorLoot = false,
+    IgnoreWeaponSwitches = false
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Full
+);
+
+// Note: This provides maximum data but takes longest to parse
+```
+
+### Dynamic Settings Based on File Size
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using System.IO;
+
+var filePath = "path/to/replay.replay";
+var fileInfo = new FileInfo(filePath);
+
+FortniteReplaySettings settings;
+
+if (fileInfo.Length > 100 * 1024 * 1024) // > 100MB
+{
+    // Large file - use aggressive optimization
+    settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.User,
+        LocationChangeDeltaMS = 2000,
+        IgnoreFloorLoot = true,
+        IgnoreContainers = true,
+        IgnoreShots = true
+    };
+}
+else
+{
+    // Smaller file - parse more data
+    settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.All,
+        LocationChangeDeltaMS = 500
+    };
+}
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay(filePath);
+```
+
+## Performance Considerations
+
+### Most Impactful Settings
+
+1. **IgnoreFloorLoot** - Floor loot events are very frequent; ignoring them can significantly speed up parsing
+2. **PlayerLocationType** - Setting to `Team` or `User` reduces location processing by 50-95%
+3. **LocationChangeDeltaMS** - Values of 500-1000ms dramatically reduce data volume with minimal accuracy loss
+4. **IgnoreInventory** - Inventory changes happen frequently throughout matches
+
+### Recommended Presets
+
+**Fast Preview:**
+```csharp
+PlayerLocationType = LocationTypes.None,
+IgnoreHealth = true,
+IgnoreContainers = true,
+IgnoreShots = true,
+IgnoreInventory = true,
+IgnoreFloorLoot = true,
+IgnoreWeaponSwitches = true
+```
+
+**Balanced:**
+```csharp
+PlayerLocationType = LocationTypes.Team,
+LocationChangeDeltaMS = 1000,
+IgnoreFloorLoot = true,
+IgnoreContainers = true
+```
+
+**Full Analysis:**
+```csharp
+PlayerLocationType = LocationTypes.All,
+LocationChangeDeltaMS = 0
+// All Ignore flags = false
+```
+
+## Related
+
+- [ReplayReader](/api/replay-reader) - Uses FortniteReplaySettings to configure parsing
+- [FortniteReplay](/api/fortnite-replay) - The data structure populated based on these settings
+- [Getting Started](/introduction) - Basic usage guide

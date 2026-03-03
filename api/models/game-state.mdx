@@ -1,0 +1,299 @@
+---
+title: "GameState"
+description: "Contains match state information including timing, settings, and session data"
+---
+
+The `GameState` class contains information about the match state, timing, team configuration, and session details. It provides context about the game mode, tournament settings, and real-time match progression.
+
+## Overview
+
+The `GameState` is accessible through `GameInformation.GameState` and contains metadata about the match configuration and current state.
+
+```csharp
+var gameState = gameInfo.GameState;
+
+Console.WriteLine($"Session ID: {gameState.SessionId}");
+Console.WriteLine($"Match Time: {gameState.MatchTime}");
+Console.WriteLine($"Playlist: {gameState.PlaylistId}");
+Console.WriteLine($"Max Players: {gameState.MaxPlayers}");
+Console.WriteLine($"Team Size: {gameState.TeamSize}");
+```
+
+## Properties
+
+### Session & Identity
+
+<ResponseField name="SessionId" type="string" required>
+  Unique identifier for this game session.
+</ResponseField>
+
+<ResponseField name="PlaylistId" type="string" required>
+  The playlist/game mode identifier (e.g., "Playlist_DefaultSolo", "Playlist_DefaultDuo", "Playlist_DefaultSquad").
+</ResponseField>
+
+<ResponseField name="MatchTime" type="DateTime" required>
+  UTC timestamp when the match started.
+</ResponseField>
+
+### Timing
+
+<ResponseField name="GameWorldStartTime" type="float" required>
+  Game world time in seconds when the match world started (used as baseline for delta calculations).
+</ResponseField>
+
+<ResponseField name="AirCraftStartTime" type="float" required>
+  Game time in seconds when the battle bus started its path.
+</ResponseField>
+
+<ResponseField name="InitialSafeZoneStartTime" type="float" required>
+  Game time in seconds when the first storm circle begins shrinking.
+</ResponseField>
+
+<ResponseField name="MatchEndTime" type="float" required>
+  Game time in seconds when the match ended.
+</ResponseField>
+
+<ResponseField name="CurrentWorldTime" type="float" required>
+  Current game world time in seconds (updated during parsing).
+</ResponseField>
+
+<ResponseField name="DeltaGameTime" type="float" required>
+  Computed property: `CurrentWorldTime - GameWorldStartTime`. Represents elapsed match time in seconds.
+</ResponseField>
+
+### Teams & Players
+
+<ResponseField name="MaxPlayers" type="int" required>
+  Maximum number of players configured for this match.
+</ResponseField>
+
+<ResponseField name="TotalTeams" type="int" required>
+  Total number of teams in the match.
+</ResponseField>
+
+<ResponseField name="TeamSize" type="int" required>
+  Number of players per team, computed as `MaxPlayers / TotalTeams`.
+  
+  For older replays where TotalTeams is 0, falls back to `OldTeamSize`.
+</ResponseField>
+
+<ResponseField name="TotalBots" type="int" required>
+  Total number of bots that started in the match.
+</ResponseField>
+
+<ResponseField name="RemainingPlayers" type="int" required>
+  Number of players still alive (updated during parsing).
+</ResponseField>
+
+<ResponseField name="CurrentTeams" type="int" required>
+  Number of teams still in the match (updated during parsing).
+</ResponseField>
+
+<ResponseField name="RemainingBots" type="int" required>
+  Number of bots still alive (updated during parsing).
+</ResponseField>
+
+<ResponseField name="WinningTeam" type="uint" required>
+  Team number/index of the winning team.
+</ResponseField>
+
+### Game Mode
+
+<ResponseField name="LargeTeamGame" type="bool" required>
+  Whether this is a large team game mode (e.g., Team Rumble, 50v50).
+</ResponseField>
+
+<ResponseField name="EEventTournamentRound" type="EEventTournamentRound" required>
+  Tournament round information if this is a tournament match.
+  
+  Default value is `EEventTournamentRound.EEventTournamentRound_MAX` for non-tournament games.
+</ResponseField>
+
+<ResponseField name="EventTournamentRound" type="int" required>
+  Integer representation of the tournament round.
+</ResponseField>
+
+### Storm & Safe Zones
+
+<ResponseField name="SafeZonePhase" type="byte" required>
+  Current storm phase number (0 = no storm, 1 = first circle, etc.).
+</ResponseField>
+
+### Battle Bus
+
+<ResponseField name="BusPaths" type="List<Aircraft>" required>
+  Collection of battle bus flight paths. Each `Aircraft` contains:
+  - `FlightStartLocation`: Starting position of the bus
+  - `FlightRotation`: Direction/rotation of the bus path
+  
+  Most matches have one bus path, but team modes may have multiple.
+</ResponseField>
+
+### Additional Info
+
+<ResponseField name="ReplayRecorder" type="Player" required>
+  Reference to the Player object who recorded this replay.
+</ResponseField>
+
+<ResponseField name="PoiManager" type="FortPoiManager" required>
+  Point of Interest manager containing named locations and their tags.
+</ResponseField>
+
+<ResponseField name="TotalPlayerStructures" type="int" required>
+  Total number of player-built structures in the match.
+</ResponseField>
+
+<ResponseField name="RecorderActor" type="uint" required>
+  Internal actor ID of the replay recorder.
+</ResponseField>
+
+<ResponseField name="ElapsedTime" type="float" required>
+  Elapsed time since last update (internal use).
+</ResponseField>
+
+<ResponseField name="OldTeamSize" type="int" required>
+  Team size for older replay formats (fallback when TotalTeams is unavailable).
+</ResponseField>
+
+## Examples
+
+### Match Overview
+
+```csharp
+void PrintMatchOverview(GameState state)
+{
+    Console.WriteLine("===== Match Information =====");
+    Console.WriteLine($"Session: {state.SessionId}");
+    Console.WriteLine($"Match Time: {state.MatchTime:yyyy-MM-dd HH:mm:ss} UTC");
+    Console.WriteLine($"Playlist: {state.PlaylistId}");
+    Console.WriteLine();
+    
+    Console.WriteLine("Game Configuration:");
+    Console.WriteLine($"  Max Players: {state.MaxPlayers}");
+    Console.WriteLine($"  Total Teams: {state.TotalTeams}");
+    Console.WriteLine($"  Team Size: {state.TeamSize}");
+    Console.WriteLine($"  Total Bots: {state.TotalBots}");
+    Console.WriteLine($"  Large Team Game: {state.LargeTeamGame}");
+    Console.WriteLine();
+    
+    if (state.WinningTeam > 0)
+    {
+        Console.WriteLine($"Winning Team: {state.WinningTeam}");
+    }
+}
+```
+
+### Match Timing
+
+```csharp
+void PrintMatchTiming(GameState state)
+{
+    var busStart = TimeSpan.FromSeconds(state.AirCraftStartTime - state.GameWorldStartTime);
+    var zoneStart = TimeSpan.FromSeconds(state.InitialSafeZoneStartTime - state.GameWorldStartTime);
+    var matchEnd = TimeSpan.FromSeconds(state.MatchEndTime - state.GameWorldStartTime);
+    
+    Console.WriteLine("Match Timeline:");
+    Console.WriteLine($"  Battle Bus Launch: {busStart:mm\\:ss}");
+    Console.WriteLine($"  First Zone Shrink: {zoneStart:mm\\:ss}");
+    Console.WriteLine($"  Match End: {matchEnd:mm\\:ss}");
+    Console.WriteLine($"  Total Duration: {matchEnd:mm\\:ss}");
+}
+```
+
+### Battle Bus Path
+
+```csharp
+void PrintBusPath(GameState state)
+{
+    Console.WriteLine($"Battle Bus Paths: {state.BusPaths.Count}");
+    
+    for (int i = 0; i < state.BusPaths.Count; i++)
+    {
+        var bus = state.BusPaths[i];
+        Console.WriteLine($"\nBus {i + 1}:");
+        Console.WriteLine($"  Start: ({bus.FlightStartLocation.X:F0}, {bus.FlightStartLocation.Y:F0}, {bus.FlightStartLocation.Z:F0})");
+        Console.WriteLine($"  Rotation: {bus.FlightRotation}");
+    }
+}
+```
+
+### Determine Game Mode
+
+```csharp
+string GetGameMode(GameState state)
+{
+    // Check playlist ID
+    if (state.PlaylistId != null)
+    {
+        if (state.PlaylistId.Contains("Solo")) return "Solo";
+        if (state.PlaylistId.Contains("Duo")) return "Duos";
+        if (state.PlaylistId.Contains("Squad")) return "Squads";
+        if (state.PlaylistId.Contains("Trio")) return "Trios";
+    }
+    
+    // Fall back to team size
+    return state.TeamSize switch
+    {
+        1 => "Solo",
+        2 => "Duos",
+        3 => "Trios",
+        4 => "Squads",
+        _ => "Unknown"
+    };
+}
+
+var mode = GetGameMode(gameState);
+Console.WriteLine($"Game Mode: {mode}");
+```
+
+### Tournament Detection
+
+```csharp
+bool IsTournamentMatch(GameState state)
+{
+    return state.EEventTournamentRound != EEventTournamentRound.EEventTournamentRound_MAX;
+}
+
+if (IsTournamentMatch(gameState))
+{
+    Console.WriteLine($"Tournament Match - Round: {gameState.EventTournamentRound}");
+}
+else
+{
+    Console.WriteLine("Public Match");
+}
+```
+
+### Player Count Over Time
+
+```csharp
+// Track remaining players as you parse
+void MonitorPlayerCount(GameState state)
+{
+    Console.WriteLine($"Players Remaining: {state.RemainingPlayers}");
+    Console.WriteLine($"Teams Remaining: {state.CurrentTeams}");
+    Console.WriteLine($"Bots Remaining: {state.RemainingBots}");
+    Console.WriteLine($"Current Phase: {state.SafeZonePhase}");
+    
+    var elapsedTime = TimeSpan.FromSeconds(state.DeltaGameTime);
+    Console.WriteLine($"Elapsed Time: {elapsedTime:mm\\:ss}");
+}
+```
+
+### Replay Recorder Info
+
+```csharp
+if (gameState.ReplayRecorder != null)
+{
+    Console.WriteLine($"Replay recorded by: {gameState.ReplayRecorder.DisplayName}");
+    Console.WriteLine($"  Epic ID: {gameState.ReplayRecorder.EpicId}");
+    Console.WriteLine($"  Platform: {gameState.ReplayRecorder.Platform}");
+    Console.WriteLine($"  Placement: #{gameState.ReplayRecorder.Placement}");
+}
+```
+
+## Related Models
+
+- [GameInformation](/api/models/game-information) - Main container including GameState
+- [Player](/api/models/player) - Player data
+- [Stats](/api/models/stats) - Match statistics

@@ -1,0 +1,84 @@
+---
+title: ParseType
+description: Enum that defines the level of detail when parsing Fortnite replay files
+---
+
+The `ParseType` enum controls how much data is extracted from a replay file during parsing. Different parse levels offer trade-offs between performance and data completeness.
+
+## Enum Values
+
+### EventsOnly
+
+Parses only events from the replay file.
+
+- **Use case**: When you only need event data without game state information
+- **Performance**: Fastest parsing option
+- **Data included**: Events only
+
+### Minimal
+
+Parses events and initial game state.
+
+- **Use case**: When you need basic game state information along with events
+- **Performance**: Fast parsing with minimal state tracking
+- **Data included**: Events + initial game state
+
+### Normal
+
+Parses events and full game state.
+
+- **Use case**: Standard parsing for most replay analysis needs
+- **Performance**: Balanced performance and data completeness
+- **Data included**: Events + complete game state throughout the replay
+
+### Full
+
+Parses everything currently handled by the parser.
+
+- **Use case**: When you need all available data from the replay
+- **Performance**: Slower due to comprehensive parsing
+- **Data included**: All events, game state, and additional metadata
+
+### Debug
+
+Parses everything plus includes debugging information.
+
+- **Use case**: Development and troubleshooting parser issues
+- **Performance**: Slowest option due to debug overhead
+- **Data included**: All data plus debugging metadata
+
+## Usage Example
+
+```csharp
+using Unreal.Core.Models.Enums;
+
+// Parse with normal level (events + full game state)
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+
+// Parse only events for faster processing
+var eventsOnly = reader.ReadReplay("replay.replay", ParseType.EventsOnly);
+
+// Parse everything for complete analysis
+var fullParse = reader.ReadReplay("replay.replay", ParseType.Full);
+
+// Debug mode for troubleshooting
+var debugParse = reader.ReadReplay("replay.replay", ParseType.Debug);
+```
+
+## Parse Level Comparison
+
+| Parse Type | Events | Initial State | Full State | Extra Data | Debug Info |
+|------------|--------|---------------|------------|------------|------------|
+| EventsOnly | ✓      | ✗             | ✗          | ✗          | ✗          |
+| Minimal    | ✓      | ✓             | ✗          | ✗          | ✗          |
+| Normal     | ✓      | ✓             | ✓          | ✗          | ✗          |
+| Full       | ✓      | ✓             | ✓          | ✓          | ✗          |
+| Debug      | ✓      | ✓             | ✓          | ✓          | ✓          |
+
+## Recommendations
+
+- **Start with Normal**: Provides a good balance for most use cases
+- **Use EventsOnly**: When performance is critical and state data isn't needed
+- **Use Full**: When you need comprehensive data analysis
+- **Use Debug**: Only during development when troubleshooting issues

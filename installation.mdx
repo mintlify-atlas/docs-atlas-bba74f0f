@@ -1,0 +1,152 @@
+---
+title: Installation
+description: Install Fortnite Replay Decompressor via NuGet package manager in your .NET project.
+---
+
+# Installation
+
+Fortnite Replay Decompressor is available as a NuGet package and can be installed using your preferred package manager.
+
+## Prerequisites
+
+Before installing Fortnite Replay Decompressor, ensure you have:
+
+- **.NET 6.0 or later** - The library targets .NET 6.0
+- **Visual Studio 2022** or **Visual Studio Code** (recommended)
+- **C# 10.0 or later**
+
+## Installation Methods
+
+<Tabs>
+  <Tab title=".NET CLI">
+    The simplest way to install the package is using the .NET CLI:
+
+    ```bash
+    dotnet add package FortniteReplayReader
+    ```
+
+    This will add the latest version of FortniteReplayReader to your project.
+  </Tab>
+
+  <Tab title="Package Manager Console">
+    If you're using Visual Studio, you can install via the Package Manager Console:
+
+    ```powershell
+    Install-Package FortniteReplayReader
+    ```
+
+    To install a specific version:
+
+    ```powershell
+    Install-Package FortniteReplayReader -Version 1.0.0
+    ```
+  </Tab>
+
+  <Tab title="NuGet CLI">
+    Using the NuGet CLI:
+
+    ```bash
+    nuget install FortniteReplayReader
+    ```
+  </Tab>
+
+  <Tab title="PackageReference">
+    You can also manually add the package reference to your `.csproj` file:
+
+    ```xml
+    <Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+      </PropertyGroup>
+
+      <ItemGroup>
+        <PackageReference Include="FortniteReplayReader" Version="*" />
+      </ItemGroup>
+    </Project>
+    ```
+
+    Replace `*` with a specific version number for production use.
+  </Tab>
+</Tabs>
+
+## Verify Installation
+
+After installation, verify that the package is correctly installed:
+
+<Steps>
+  <Step title="Check your project file">
+    Open your `.csproj` file and confirm that FortniteReplayReader appears in your package references:
+
+    ```xml
+    <ItemGroup>
+      <PackageReference Include="FortniteReplayReader" Version="x.x.x" />
+    </ItemGroup>
+    ```
+  </Step>
+
+  <Step title="Test the import">
+    Create a new C# file and try importing the namespace:
+
+    ```csharp
+    using FortniteReplayReader;
+    using FortniteReplayReader.Models;
+    ```
+
+    If there are no errors, the installation was successful.
+  </Step>
+
+  <Step title="Create a ReplayReader instance">
+    Test that you can instantiate the main class:
+
+    ```csharp
+    using FortniteReplayReader;
+
+    var reader = new ReplayReader();
+    Console.WriteLine("FortniteReplayReader is ready!");
+    ```
+
+    Build and run your project. If you see the success message, you're ready to start parsing replays!
+  </Step>
+</Steps>
+
+## Dependencies
+
+Fortnite Replay Decompressor has the following dependencies (automatically installed):
+
+- **Microsoft.Extensions.Logging.Abstractions** (v2.2.0) - For optional logging support
+- **Unreal.Core** - Core Unreal Engine parsing functionality
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="bolt" href="/quickstart">
+    Learn how to parse your first replay file
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Explore parse modes and settings options
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Package not found">
+    If NuGet cannot find the package, ensure:
+    - Your NuGet package sources are correctly configured
+    - You have an active internet connection
+    - You're using the correct package name: `FortniteReplayReader`
+  </Accordion>
+
+  <Accordion title="Target framework mismatch">
+    If you see errors about incompatible target frameworks:
+    - Ensure your project targets .NET 6.0 or later
+    - Update your `.csproj` file: `<TargetFramework>net6.0</TargetFramework>`
+  </Accordion>
+
+  <Accordion title="Missing dependencies">
+    If you encounter missing dependency errors:
+    - Restore NuGet packages: `dotnet restore`
+    - Clean and rebuild your solution
+  </Accordion>
+</AccordionGroup>

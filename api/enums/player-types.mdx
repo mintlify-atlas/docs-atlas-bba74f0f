@@ -1,0 +1,181 @@
+---
+title: PlayerTypes
+description: Enum that identifies different types of players in Fortnite replays
+---
+
+The `PlayerTypes` enum distinguishes between different types of players found in Fortnite replay files. This is essential for filtering and analyzing player eliminations and interactions.
+
+## Enum Values
+
+### Bot
+
+Represents an AI bot player.
+
+- **Value**: `0x03`
+- **Description**: Standard AI-controlled bot without a specific name
+- **Use case**: Identifying bot eliminations, filtering out bot interactions
+
+### NamedBot
+
+Represents a named AI bot player.
+
+- **Value**: `0x10`
+- **Description**: AI-controlled bot with a generated name (looks like a real player)
+- **Use case**: Distinguishing named bots from actual players
+
+### Player
+
+Represents a real human player.
+
+- **Value**: `0x11`
+- **Description**: Actual human player in the match
+- **Use case**: Identifying real player interactions and eliminations
+
+## Usage Example
+
+```csharp
+using FortniteReplayReader.Models.Enums;
+
+// Check player type in elimination data
+foreach (var elimination in replay.Eliminations)
+{
+    // Check if eliminated player was a bot
+    if (elimination.EliminatedPlayerType == PlayerTypes.Bot)
+    {
+        Console.WriteLine($"Eliminated an AI bot");
+    }
+    else if (elimination.EliminatedPlayerType == PlayerTypes.NamedBot)
+    {
+        Console.WriteLine($"Eliminated a named bot: {elimination.EliminatedPlayer}");
+    }
+    else if (elimination.EliminatedPlayerType == PlayerTypes.Player)
+    {
+        Console.WriteLine($"Eliminated a real player: {elimination.EliminatedPlayer}");
+    }
+}
+```
+
+## Filtering Examples
+
+### Count Real Player Eliminations Only
+
+```csharp
+// Count only eliminations of real players
+var realPlayerElims = replay.Eliminations
+    .Count(e => e.EliminatedPlayerType == PlayerTypes.Player);
+
+Console.WriteLine($"Real player eliminations: {realPlayerElims}");
+```
+
+### Separate Bot and Player Stats
+
+```csharp
+var botEliminations = replay.Eliminations
+    .Count(e => e.EliminatedPlayerType == PlayerTypes.Bot || 
+                e.EliminatedPlayerType == PlayerTypes.NamedBot);
+
+var playerEliminations = replay.Eliminations
+    .Count(e => e.EliminatedPlayerType == PlayerTypes.Player);
+
+Console.WriteLine($"Bot eliminations: {botEliminations}");
+Console.WriteLine($"Player eliminations: {playerEliminations}");
+```
+
+### Filter Out All Bot Interactions
+
+```csharp
+// Get only player-vs-player eliminations
+var pvpEliminations = replay.Eliminations
+    .Where(e => e.EliminatedPlayerType == PlayerTypes.Player && 
+                e.EliminatorPlayerType == PlayerTypes.Player)
+    .ToList();
+
+Console.WriteLine($"PvP eliminations: {pvpEliminations.Count}");
+```
+
+### Identify Named Bots
+
+```csharp
+// Find all named bots in the match
+var namedBots = replay.Eliminations
+    .Where(e => e.EliminatedPlayerType == PlayerTypes.NamedBot)
+    .Select(e => e.EliminatedPlayer)
+    .Distinct()
+    .ToList();
+
+Console.WriteLine("Named bots in this match:");
+foreach (var bot in namedBots)
+{
+    Console.WriteLine($"- {bot}");
+}
+```
+
+## Understanding Bot Types
+
+### Bot (0x03)
+
+- Traditional AI bots
+- Usually have generic or no names
+- Easier to identify as non-human
+- Common in lower-skilled lobbies
+
+### NamedBot (0x10)
+
+- More sophisticated bot representation
+- Given realistic player names
+- Can be mistaken for real players without type checking
+- Introduced in later Fortnite seasons
+
+### Player (0x11)
+
+- Confirmed human players
+- Authenticated Epic Games accounts
+- Real competitive interactions
+
+## Practical Applications
+
+### Competitive Analysis
+
+```csharp
+// Calculate competitive eliminations (players only)
+var competitiveKills = replay.Eliminations
+    .Count(e => e.EliminatorPlayerType == PlayerTypes.Player &&
+                e.EliminatedPlayerType == PlayerTypes.Player);
+```
+
+### Bot Detection Report
+
+```csharp
+var totalPlayers = replay.Players.Count;
+var botCount = replay.Players
+    .Count(p => p.PlayerType == PlayerTypes.Bot || 
+                p.PlayerType == PlayerTypes.NamedBot);
+var realPlayerCount = replay.Players
+    .Count(p => p.PlayerType == PlayerTypes.Player);
+
+Console.WriteLine($"Match Composition:");
+Console.WriteLine($"Real Players: {realPlayerCount}/{totalPlayers}");
+Console.WriteLine($"Bots: {botCount}/{totalPlayers}");
+```
+
+### Skill-Based Matchmaking Analysis
+
+```csharp
+// Estimate lobby difficulty based on bot percentage
+var botPercentage = (double)botCount / totalPlayers * 100;
+
+if (botPercentage > 50)
+    Console.WriteLine("Low-skill lobby (>50% bots)");
+else if (botPercentage > 20)
+    Console.WriteLine("Medium-skill lobby (20-50% bots)");
+else
+    Console.WriteLine("High-skill lobby (<20% bots)");
+```
+
+## Type Values Reference
+
+| Type      | Hex Value | Decimal | Description |
+|-----------|-----------|---------|-------------|
+| Bot       | 0x03      | 3       | Standard AI bot |
+| NamedBot  | 0x10      | 16      | Named AI bot |
+| Player    | 0x11      | 17      | Human player |

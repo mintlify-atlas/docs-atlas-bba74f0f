@@ -1,0 +1,323 @@
+---
+title: "Stats & TeamStats"
+description: "Player and team statistics from match summary events"
+---
+
+The `Stats` and `TeamStats` classes contain match summary statistics extracted from replay events. These provide aggregated performance data for individual players and teams.
+
+## Overview
+
+Stats are typically found in match summary events parsed from the replay. They contain aggregated data about player performance and team rankings.
+
+```csharp
+// Stats are available through event parsing
+foreach (var stat in replay.Stats)
+{
+    Console.WriteLine($"Player Stats:");
+    Console.WriteLine($"  Eliminations: {stat.Eliminations}");
+    Console.WriteLine($"  Accuracy: {stat.Accuracy:P2}");
+    Console.WriteLine($"  Damage to Players: {stat.DamageToPlayers}");
+}
+```
+
+## Stats Class
+
+The `Stats` class contains individual player statistics from match summary data.
+
+### Properties
+
+<ResponseField name="Eliminations" type="uint" required>
+  Total number of player eliminations (kills).
+</ResponseField>
+
+<ResponseField name="Accuracy" type="float" required>
+  Shooting accuracy as a decimal (0.0 to 1.0).
+  
+  To display as percentage: `Accuracy * 100`
+</ResponseField>
+
+<ResponseField name="Assists" type="uint" required>
+  Number of elimination assists.
+</ResponseField>
+
+<ResponseField name="WeaponDamage" type="uint" required>
+  Total damage dealt to players with weapons.
+</ResponseField>
+
+<ResponseField name="OtherDamage" type="uint" required>
+  Total damage dealt to players from other sources (explosives, storm, etc.).
+</ResponseField>
+
+<ResponseField name="DamageToPlayers" type="uint" required>
+  Computed property: Total damage to players (`WeaponDamage + OtherDamage`).
+</ResponseField>
+
+<ResponseField name="Revives" type="uint" required>
+  Number of teammate revives/resurrections.
+</ResponseField>
+
+<ResponseField name="DamageTaken" type="uint" required>
+  Total damage received from all sources.
+</ResponseField>
+
+<ResponseField name="DamageToStructures" type="uint" required>
+  Total damage dealt to player-built structures.
+</ResponseField>
+
+<ResponseField name="MaterialsGathered" type="uint" required>
+  Total building materials harvested (wood, stone, metal combined).
+</ResponseField>
+
+<ResponseField name="MaterialsUsed" type="uint" required>
+  Total building materials consumed for building structures.
+</ResponseField>
+
+<ResponseField name="TotalTraveled" type="uint" required>
+  Total distance traveled in Unreal Units.
+  
+  <Note>Divide by 100 to convert to meters: `TotalTraveled / 100`</Note>
+</ResponseField>
+
+<ResponseField name="Unknown" type="uint" required>
+  Unknown/reserved field from the stats structure.
+</ResponseField>
+
+### Base Event Properties
+
+`Stats` extends `BaseEvent`, providing:
+
+<ResponseField name="Group" type="string" required>
+  Event group identifier.
+</ResponseField>
+
+<ResponseField name="Metadata" type="string" required>
+  Event metadata string.
+</ResponseField>
+
+<ResponseField name="StartTime" type="uint" required>
+  Event start time in milliseconds.
+</ResponseField>
+
+<ResponseField name="EndTime" type="uint" required>
+  Event end time in milliseconds.
+</ResponseField>
+
+## TeamStats Class
+
+The `TeamStats` class contains team-level statistics from match summary data.
+
+### Properties
+
+<ResponseField name="Position" type="uint" required>
+  Final team placement/ranking (1 = Victory Royale).
+</ResponseField>
+
+<ResponseField name="TotalPlayers" type="uint" required>
+  Total number of players on this team.
+</ResponseField>
+
+<ResponseField name="Unknown" type="uint" required>
+  Unknown/reserved field from the team stats structure.
+</ResponseField>
+
+### Base Event Properties
+
+Same as Stats class (extends `BaseEvent`).
+
+## Examples
+
+### Display Player Stats
+
+```csharp
+void PrintPlayerStats(Stats stats)
+{
+    Console.WriteLine("===== Player Statistics =====");
+    
+    // Combat Stats
+    Console.WriteLine("\nCombat:");
+    Console.WriteLine($"  Eliminations: {stats.Eliminations}");
+    Console.WriteLine($"  Assists: {stats.Assists}");
+    Console.WriteLine($"  Accuracy: {stats.Accuracy:P1}"); // e.g., "45.2%"
+    Console.WriteLine($"  Damage to Players: {stats.DamageToPlayers:N0}");
+    Console.WriteLine($"    Weapon Damage: {stats.WeaponDamage:N0}");
+    Console.WriteLine($"    Other Damage: {stats.OtherDamage:N0}");
+    Console.WriteLine($"  Damage Taken: {stats.DamageTaken:N0}");
+    
+    // Building Stats
+    Console.WriteLine("\nBuilding:");
+    Console.WriteLine($"  Materials Gathered: {stats.MaterialsGathered:N0}");
+    Console.WriteLine($"  Materials Used: {stats.MaterialsUsed:N0}");
+    Console.WriteLine($"  Damage to Structures: {stats.DamageToStructures:N0}");
+    
+    // Support
+    Console.WriteLine("\nSupport:");
+    Console.WriteLine($"  Revives: {stats.Revives}");
+    
+    // Movement
+    Console.WriteLine("\nMovement:");
+    var distanceKm = (stats.TotalTraveled / 100.0) / 1000.0;
+    Console.WriteLine($"  Distance Traveled: {distanceKm:F2} km");
+}
+```
+
+### Calculate K/D Ratio
+
+```csharp
+void ShowKDRatio(Stats stats)
+{
+    // Assuming player died if DamageTaken > 0
+    int deaths = stats.DamageTaken > 0 ? 1 : 0;
+    
+    double kd = deaths > 0 
+        ? (double)stats.Eliminations / deaths 
+        : stats.Eliminations;
+    
+    Console.WriteLine($"K/D Ratio: {kd:F2}");
+    Console.WriteLine($"Kills: {stats.Eliminations}");
+    Console.WriteLine($"Deaths: {deaths}");
+}
+```
+
+### Combat Efficiency
+
+```csharp
+void AnalyzeCombatEfficiency(Stats stats)
+{
+    Console.WriteLine("Combat Efficiency:");
+    
+    // Damage per elimination
+    if (stats.Eliminations > 0)
+    {
+        var damagePerElim = (double)stats.DamageToPlayers / stats.Eliminations;
+        Console.WriteLine($"  Damage per Elimination: {damagePerElim:F0}");
+    }
+    
+    // Accuracy
+    Console.WriteLine($"  Accuracy: {stats.Accuracy:P1}");
+    
+    // Damage breakdown
+    var weaponPct = stats.DamageToPlayers > 0 
+        ? (double)stats.WeaponDamage / stats.DamageToPlayers * 100 
+        : 0;
+    Console.WriteLine($"  Weapon Damage: {weaponPct:F1}%");
+    Console.WriteLine($"  Other Damage: {100 - weaponPct:F1}%");
+    
+    // K/A ratio
+    var totalContributions = stats.Eliminations + stats.Assists;
+    Console.WriteLine($"  Total Contributions (K+A): {totalContributions}");
+}
+```
+
+### Building Statistics
+
+```csharp
+void AnalyzeBuildingStats(Stats stats)
+{
+    Console.WriteLine("Building Analysis:");
+    Console.WriteLine($"  Materials Gathered: {stats.MaterialsGathered:N0}");
+    Console.WriteLine($"  Materials Used: {stats.MaterialsUsed:N0}");
+    Console.WriteLine($"  Materials Remaining: {stats.MaterialsGathered - stats.MaterialsUsed:N0}");
+    
+    if (stats.MaterialsUsed > 0)
+    {
+        var usageRate = (double)stats.MaterialsUsed / stats.MaterialsGathered * 100;
+        Console.WriteLine($"  Usage Rate: {usageRate:F1}%");
+    }
+    
+    Console.WriteLine($"  Structure Damage Dealt: {stats.DamageToStructures:N0}");
+}
+```
+
+### Team Stats Summary
+
+```csharp
+void PrintTeamStats(TeamStats teamStats)
+{
+    Console.WriteLine("===== Team Statistics =====");
+    Console.WriteLine($"Final Position: #{teamStats.Position}");
+    Console.WriteLine($"Team Size: {teamStats.TotalPlayers}");
+    
+    string medal = teamStats.Position switch
+    {
+        1 => "🥇 Victory Royale!",
+        2 => "🥈 Second Place",
+        3 => "🥉 Third Place",
+        _ => ""
+    };
+    
+    if (!string.IsNullOrEmpty(medal))
+    {
+        Console.WriteLine(medal);
+    }
+}
+```
+
+### Compare Stats Across Players
+
+```csharp
+void ComparePlayerStats(IEnumerable<Stats> allStats)
+{
+    var statsList = allStats.ToList();
+    
+    Console.WriteLine("Squad Performance Comparison:");
+    Console.WriteLine();
+    
+    // Find best performers
+    var mostKills = statsList.OrderByDescending(s => s.Eliminations).First();
+    var mostDamage = statsList.OrderByDescending(s => s.DamageToPlayers).First();
+    var bestAccuracy = statsList.OrderByDescending(s => s.Accuracy).First();
+    var mostRevives = statsList.OrderByDescending(s => s.Revives).First();
+    var mostBuilding = statsList.OrderByDescending(s => s.MaterialsUsed).First();
+    
+    Console.WriteLine($"Most Eliminations: {mostKills.Eliminations}");
+    Console.WriteLine($"Most Damage: {mostDamage.DamageToPlayers:N0}");
+    Console.WriteLine($"Best Accuracy: {bestAccuracy.Accuracy:P1}");
+    Console.WriteLine($"Most Revives: {mostRevives.Revives}");
+    Console.WriteLine($"Most Building: {mostBuilding.MaterialsUsed:N0} mats");
+    
+    // Team totals
+    Console.WriteLine();
+    Console.WriteLine("Team Totals:");
+    Console.WriteLine($"  Combined Eliminations: {statsList.Sum(s => s.Eliminations)}");
+    Console.WriteLine($"  Combined Damage: {statsList.Sum(s => s.DamageToPlayers):N0}");
+    Console.WriteLine($"  Combined Assists: {statsList.Sum(s => s.Assists)}");
+}
+```
+
+### Movement Analysis
+
+```csharp
+void AnalyzeMovement(Stats stats)
+{
+    var meters = stats.TotalTraveled / 100.0;
+    var kilometers = meters / 1000.0;
+    
+    Console.WriteLine("Movement Statistics:");
+    Console.WriteLine($"  Total Distance: {kilometers:F2} km ({meters:F0}m)");
+    
+    // Estimate average speed (assuming 20 min match)
+    var assumedMatchMinutes = 20.0;
+    var avgSpeedKmh = (kilometers / assumedMatchMinutes) * 60;
+    
+    Console.WriteLine($"  Estimated Avg Speed: {avgSpeedKmh:F1} km/h");
+}
+```
+
+## Notes
+
+<Note>
+  Stats data is typically found in event metadata and may not be available in all replay types. Stats are most commonly available in:
+  - Player's own replays
+  - Tournament/competitive replays
+  - Recent replay versions
+</Note>
+
+<Warning>
+  The `Unknown` field in both Stats and TeamStats is a placeholder for undocumented data in the replay format. It may contain useful data in future Fortnite versions.
+</Warning>
+
+## Related Models
+
+- [Player](/api/models/player) - Player data including real-time combat tracking
+- [GameInformation](/api/models/game-information) - Main data container
+- [GameState](/api/models/game-state) - Match state and configuration

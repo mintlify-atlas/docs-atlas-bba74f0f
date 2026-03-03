@@ -1,0 +1,464 @@
+---
+title: 'Troubleshooting'
+description: 'Common issues, debugging tips, and solutions for replay parsing problems'
+icon: 'wrench'
+---
+
+## Exception Types
+
+The library defines several exception types to help diagnose parsing issues:
+
+### FortniteReplayReader Exceptions
+
+<AccordionGroup>
+  <Accordion title="PlayerEliminationException">
+    **Namespace:** `FortniteReplayReader.Exceptions`
+    
+    **Thrown when:** Player elimination event parsing fails
+    
+    **Source Location:** FortniteReplayReader.cs:459
+    
+    ```csharp
+    try
+    {
+        var elim = ParseElimination(archive, info);
+        Replay.Eliminations.Add(elim);
+    }
+    catch (Exception ex)
+    {
+        _logger?.LogError($"Error while parsing PlayerElimination at timestamp {info.StartTime}");
+        throw new PlayerEliminationException(
+            $"Error while parsing PlayerElimination at timestamp {info.StartTime}", 
+            ex
+        );
+    }
+    ```
+    
+    **Common Causes:**
+    - Corrupted elimination event data
+    - Version mismatch between replay and parser
+    - Incomplete event data due to network issues
+    
+    **Solution:**
+    ```csharp
+    try
+    {
+        var replay = reader.ReadReplay("replay.replay");
+    }
+    catch (PlayerEliminationException ex)
+    {
+        Console.WriteLine($"Failed to parse elimination: {ex.Message}");
+        Console.WriteLine($"Inner exception: {ex.InnerException?.Message}");
+        // Continue with partial data or skip this replay
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Unreal.Core Exceptions
+
+<AccordionGroup>
+  <Accordion title="InvalidReplayException">
+    **Namespace:** `Unreal.Core.Exceptions`
+    
+    **Thrown when:** The replay file is invalid, corrupted, or not a valid Unreal replay
+    
+    ```csharp
+    public class InvalidReplayException : Exception
+    {
+        public InvalidReplayException() : base() { }
+        public InvalidReplayException(string msg) : base(msg) { }
+    }
+    ```
+    
+    **Common Causes:**
+    - File is not a replay file
+    - Replay header is corrupted
+    - Unsupported replay format
+    - Incomplete download/transfer
+    
+    **Solution:**
+    ```csharp
+    try
+    {
+        var replay = reader.ReadReplay("replay.replay");
+    }
+    catch (InvalidReplayException ex)
+    {
+        Console.WriteLine($"Invalid replay file: {ex.Message}");
+        // Verify file integrity, re-download if necessary
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="MalformedPacketException">
+    **Namespace:** `Unreal.Core.Exceptions`
+    
+    **Thrown when:** A network packet in the replay is malformed or cannot be parsed
+    
+    ```csharp
+    public class MalformedPacketException : Exception
+    {
+        public MalformedPacketException() : base() { }
+        public MalformedPacketException(string msg) : base(msg) { }
+        public MalformedPacketException(string msg, Exception exception) : base(msg, exception) { }
+    }
+    ```
+    
+    **Common Causes:**
+    - Corrupted packet data
+    - Unexpected packet structure
+    - Version incompatibility
+    - Network recording issues during original gameplay
+    
+    **Solution:**
+    ```csharp
+    try
+    {
+        var replay = reader.ReadReplay("replay.replay");
+    }
+    catch (MalformedPacketException ex)
+    {
+        Console.WriteLine($"Malformed packet encountered: {ex.Message}");
+        if (ex.InnerException != null)
+        {
+            Console.WriteLine($"Details: {ex.InnerException.Message}");
+        }
+        // Replay may be partially readable
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="UnknownEventException">
+    **Namespace:** `Unreal.Core.Exceptions`
+    
+    **Thrown when:** An unrecognized event type is encountered
+    
+    **Note:** As of current version, this is logged as a warning but not thrown:
+    
+    ```csharp
+    else if (info.Group == "fortBenchEvent")
+    {
+        return; // Ignore benchmark events
+    }
+
+    _logger?.LogWarning($"Unknown event {info.Group} ({info.Metadata}) of size {info.SizeInBytes}");
+    // throw new UnknownEventException(...); // Commented out in production
+    ```
+    
+    **Common Causes:**
+    - New event types in newer game versions
+    - Custom game modes with special events
+    - Beta features in replays
+    
+    **Solution:** Update to the latest library version or check logs for unknown event types
+  </Accordion>
+</AccordionGroup>
+
+## Debugging Techniques
+
+### Enable Logging
+
+The library uses `Microsoft.Extensions.Logging`. Enable detailed logging:
+
+```csharp
+using Microsoft.Extensions.Logging;
+
+var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder
+        .SetMinimumLevel(LogLevel.Debug)
+        .AddConsole();
+});
+
+var logger = loggerFactory.CreateLogger<ReplayReader>();
+var reader = new ReplayReader(logger);
+
+try
+{
+    var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+}
+finally
+{
+    loggerFactory.Dispose();
+}
+```
+
+**Output Examples:**
+```
+Debug: Encountered event PlayerElimination (AthenaMatchStats) at 1234567 of size 256
+Warning: Unknown event fortBenchEvent () of size 128
+Error: Error while parsing PlayerElimination at timestamp 1234567
+```
+
+### Monitor TotalPropertiesRead
+
+Track parsing progress and identify stuck operations:
+
+```csharp
+var reader = new ReplayReader();
+var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+var parseTask = Task.Run(() => reader.ReadReplay("replay.replay", ParseType.Full));
+var monitorTask = Task.Run(async () =>
+{
+    while (!cts.Token.IsCancellationRequested)
+    {
+        await Task.Delay(1000);
+        Console.WriteLine($"Properties read: {reader.TotalPropertiesRead}");
+    }
+});
+
+try
+{
+    await Task.WhenAny(parseTask, Task.Delay(-1, cts.Token));
+    var replay = await parseTask;
+    Console.WriteLine($"Total properties: {reader.TotalPropertiesRead}");
+}
+finally
+{
+    cts.Cancel();
+}
+```
+
+### Inspect Replay Metadata
+
+Check basic replay information before full parsing:
+
+```csharp
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.EventsOnly);
+
+Console.WriteLine($"Fortnite Version: {reader.Branch}");
+Console.WriteLine($"Major: {reader.Major}, Minor: {reader.Minor}");
+Console.WriteLine($"Network Version: {replay.Header.NetworkVersion}");
+Console.WriteLine($"Engine Version: {replay.Header.EngineNetworkVersion}");
+Console.WriteLine($"Encrypted: {replay.Info.Encrypted}");
+Console.WriteLine($"File Version: {replay.Info.FileVersion}");
+```
+
+### Branch and Version Detection
+
+The parser automatically detects Fortnite version from the replay:
+
+```csharp
+// From FortniteReplayReader.cs:56-69
+public string Branch
+{
+    get { return _branch; }
+    set
+    {
+        var regex = new Regex(@"\+\+Fortnite\+Release\-(?<major>\d+)\.(?<minor>\d*)");
+        var result = regex.Match(value);
+        if (result.Success)
+        {
+            Major = int.Parse(result.Groups["major"]?.Value ?? "0");
+            Minor = int.Parse(result.Groups["minor"]?.Value ?? "0");
+        }
+        _branch = value;
+    }
+}
+```
+
+<Note>
+  Version detection is crucial for handling version-specific parsing logic throughout the codebase.
+</Note>
+
+## Common Errors and Solutions
+
+### Issue: "No data extracted from replay"
+
+**Symptoms:** Replay parses without errors but contains no player data, eliminations, or game state.
+
+**Causes:**
+- Using `ParseType.EventsOnly` when you need game state data
+- Incorrect `ParseType` for the data you need
+- Settings filters blocking necessary data
+
+**Solution:**
+```csharp
+// Wrong - too minimal
+var replay = reader.ReadReplay("replay.replay", ParseType.EventsOnly);
+
+// Correct - appropriate level
+var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+
+// Or enable specific groups
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Full);
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+```
+
+### Issue: "Parsing takes too long"
+
+**Symptoms:** Replay parsing hangs or takes several minutes.
+
+**Causes:**
+- Using `ParseType.Full` or `ParseType.Debug` unnecessarily
+- Not filtering unwanted data with settings
+- Very large replay file (long game duration)
+
+**Solution:**
+```csharp
+// Optimize parse type
+var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+
+// Filter unnecessary data
+var settings = new FortniteReplaySettings
+{
+    IgnoreFloorLoot = true,  // Skip floor loot (major performance boost)
+    IgnoreShots = true,      // Skip shot data if not needed
+    IgnoreInventory = true   // Skip inventory tracking
+};
+var reader = new ReplayReader(settings: settings);
+
+// Use targeted parsing
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Normal);
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+```
+
+<Warning>
+  **Performance Tip:** `ParseType.Full` can process 100,000+ exports per replay. Use `IgnoreFloorLoot = true` to reduce this by 50-70%.
+</Warning>
+
+### Issue: "Elimination data missing or incomplete"
+
+**Symptoms:** `replay.Eliminations` is empty or missing some eliminations.
+
+**Causes:**
+- Replay recorded from non-player perspective
+- Pre-lobby eliminations not recorded
+- Creative/LTM mode with different elimination tracking
+- Version-specific parsing issues
+
+**Solution:**
+```csharp
+try
+{
+    var replay = reader.ReadReplay("replay.replay");
+    
+    if (replay.Eliminations.Count == 0)
+    {
+        Console.WriteLine("No eliminations found. Possible causes:");
+        Console.WriteLine($"- Replay version: {reader.Major}.{reader.Minor}");
+        Console.WriteLine($"- Game mode: {replay.GameInformation?.CurrentPlaylistInfo?.PlaylistName}");
+        Console.WriteLine($"- Encrypted: {replay.Info.Encrypted}");
+    }
+}
+catch (PlayerEliminationException ex)
+{
+    Console.WriteLine($"Elimination parsing failed: {ex.Message}");
+    // Check inner exception for specific parsing error
+}
+```
+
+### Issue: "OutOfMemoryException during parsing"
+
+**Symptoms:** Application crashes with `OutOfMemoryException`.
+
+**Causes:**
+- Large replay file with `ParseType.Full`
+- Not disposing reader properly
+- Processing multiple replays sequentially without cleanup
+
+**Solution:**
+```csharp
+// Proper disposal pattern
+using (var reader = new ReplayReader())
+{
+    var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+    // Process replay
+    // ... 
+} // Reader automatically disposed
+
+// Process multiple replays with cleanup
+foreach (var file in replayFiles)
+{
+    using var reader = new ReplayReader();
+    var replay = reader.ReadReplay(file, ParseType.Normal);
+    ProcessReplay(replay);
+    
+    // Force garbage collection between large replays
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+}
+```
+
+### Issue: "Player locations/movements not tracked"
+
+**Symptoms:** Player pawn data is null or incomplete.
+
+**Causes:**
+- `ParseType.Minimal` doesn't process player pawns
+- Player pawn parsing requires `ParseType.Normal` or higher (see FortniteReplayReader.cs:134-138)
+
+**Solution:**
+```csharp
+// Wrong - Minimal doesn't parse player pawns
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+
+// Correct - Need at least Normal
+var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+
+// Or use SetParseType
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Full);
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+```
+
+## Debugging Checklist
+
+When encountering issues, verify:
+
+- [ ] Replay file is valid and not corrupted
+- [ ] Using appropriate `ParseType` for desired data
+- [ ] Settings are not filtering out needed data
+- [ ] Library version is compatible with replay version
+- [ ] Logging is enabled to see warnings/errors
+- [ ] Replay is from a supported game mode
+- [ ] File is fully downloaded (check file size)
+- [ ] Encryption key is provided if replay is encrypted
+
+## Performance Profiling
+
+```csharp
+using System.Diagnostics;
+
+var stopwatch = Stopwatch.StartNew();
+var reader = new ReplayReader();
+
+try
+{
+    var replay = reader.ReadReplay("replay.replay", ParseType.Normal);
+    stopwatch.Stop();
+    
+    Console.WriteLine($"Parse time: {stopwatch.ElapsedMilliseconds}ms");
+    Console.WriteLine($"Properties read: {reader.TotalPropertiesRead}");
+    Console.WriteLine($"Properties/second: {reader.TotalPropertiesRead / stopwatch.Elapsed.TotalSeconds:F0}");
+    Console.WriteLine($"Eliminations: {replay.Eliminations.Count}");
+    Console.WriteLine($"Game length: {replay.GameInformation?.ReplayLength}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed after {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
+}
+```
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+1. **Enable Debug Logging:** Capture full logs with `LogLevel.Debug`
+2. **Check Version Compatibility:** Verify replay version matches library support
+3. **Isolate the Issue:** Test with minimal `ParseType` first
+4. **Provide Details:** Include replay metadata, version numbers, and full exception stack traces
+5. **Report Issues:** Submit detailed bug reports to the library maintainers
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Custom Parsing" icon="code" href="/advanced/custom-parsing">
+    Learn about ParseType and parsing control
+  </Card>
+  <Card title="NetField Exports" icon="network-wired" href="/advanced/net-field-exports">
+    Understand export types and processing
+  </Card>
+</CardGroup>

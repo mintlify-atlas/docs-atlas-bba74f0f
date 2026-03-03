@@ -1,0 +1,237 @@
+---
+title: 'Custom Parsing'
+description: 'Advanced parsing techniques for fine-tuned control over replay data extraction'
+icon: 'code'
+---
+
+## Overview
+
+The Fortnite Replay Decompressor provides flexible parsing options that allow you to customize how much data is extracted from replays. This is crucial for performance optimization and targeted data extraction.
+
+## Parse Types
+
+The library supports five levels of parsing granularity:
+
+```csharp
+public enum ParseType
+{
+    EventsOnly,  // Parses only events
+    Minimal,     // Parses events and initial game state
+    Normal,      // Parses events and full game state
+    Full,        // Parses everything currently handled
+    Debug        // Parses everything + debugging information
+}
+```
+
+### Basic Usage
+
+```csharp
+using var reader = new ReplayReader();
+
+// Parse with minimal data (fastest)
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+
+// Parse with full data (slowest, most complete)
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+```
+
+<Note>
+  **Performance Tip:** Start with `ParseType.Minimal` and increase only if you need more data. Higher parse types significantly increase processing time.
+</Note>
+
+## SetParseType Method
+
+For fine-grained control, use `SetParseType` to customize parsing for specific data groups:
+
+```csharp
+var reader = new ReplayReader();
+
+// Enable detailed parsing for player pawns (locations, vehicles, inventory)
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Full);
+
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+```
+
+### Parsing Groups
+
+Currently available parsing groups:
+
+<AccordionGroup>
+  <Accordion title="ParsingGroup.PlayerPawn">
+    Controls parsing for:
+    - Player locations and movement
+    - Vehicle data
+    - Inventory changes
+    - Shot data
+    - Weapon switches
+    - Bot locations
+    
+    **Implementation Details (FortniteReplayReader.cs:529-561):**
+    ```csharp
+    case ParsingGroup.PlayerPawn:
+        SetParseType(typeof(PlayerPawnC), type); // Normal player locations
+        SetParseType(GetInheritedClasses(typeof(PlayerPawnC)), type); // Bot locations
+        SetParseType(GetInheritedClasses(typeof(BaseVehicle)), type); // Vehicle locations
+        break;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## ContinueParsingChannel Override
+
+The `ContinueParsingChannel` method determines whether the parser should continue reading properties for a specific export group:
+
+```csharp
+protected override bool ContinueParsingChannel(INetFieldExportGroup exportGroup)
+{
+    switch (exportGroup)
+    {
+        // Always fully parse these critical objects
+        case SupplyDropLlamaC _:
+        case SupplyDropC _:
+        case SafeZoneIndicatorC _:
+        case FortPoiManager _:
+        case GameStateC _:
+            return true;
+    }
+
+    // For other objects, respect the ParseType setting
+    switch (ParseType)
+    {
+        case ParseType.Minimal:
+            return false;
+        default:
+            return true;
+    }
+}
+```
+
+<Warning>
+  Certain objects like `GameStateC` and `SafeZoneIndicatorC` are **always** fully parsed regardless of `ParseType` because they contain critical game information.
+</Warning>
+
+## OnExportRead Callback
+
+The `OnExportRead` callback is invoked for every NetFieldExport read from the replay. This is where you can intercept and process specific data:
+
+```csharp
+protected override void OnExportRead(uint channel, INetFieldExportGroup exportGroup)
+{
+    ++TotalPropertiesRead;
+
+    switch (exportGroup)
+    {
+        case PlayerPawnC playerPawn:
+            if (ParseType >= ParseType.Normal)
+            {
+                Replay.GameInformation.UpdatePlayerPawn(channel, playerPawn);
+            }
+            break;
+            
+        case FortPlayerState playerState:
+            Replay.GameInformation.UpdatePlayerState(channel, playerState, GuidCache.NetworkGameplayTagNodeIndex);
+            break;
+            
+        case GameStateC gameState:
+            Replay.GameInformation.UpdateGameState(gameState);
+            break;
+            
+        case BaseWeapon weapon:
+            Replay.GameInformation.HandleWeapon(channel, weapon);
+            break;
+            
+        case HealthSet healthSet:
+            if (!_fortniteSettings.IgnoreHealth)
+            {
+                Replay.GameInformation.UpdateHealth(channel, healthSet, GuidCache);
+            }
+            break;
+    }
+}
+```
+
+### Custom Export Processing Example
+
+```csharp
+public class CustomReplayReader : ReplayReader
+{
+    public List<PlayerMovement> PlayerMovements { get; } = new();
+    
+    protected override void OnExportRead(uint channel, INetFieldExportGroup exportGroup)
+    {
+        base.OnExportRead(channel, exportGroup);
+        
+        // Custom processing for player movement
+        if (exportGroup is PlayerPawnC pawn && pawn.Location != null)
+        {
+            PlayerMovements.Add(new PlayerMovement
+            {
+                Channel = channel,
+                Location = pawn.Location,
+                Timestamp = Replay.GameInformation.CurrentReplayTime
+            });
+        }
+    }
+}
+```
+
+## Settings-Based Filtering
+
+Use `FortniteReplaySettings` to filter out specific data types:
+
+```csharp
+var settings = new FortniteReplaySettings
+{
+    IgnoreFloorLoot = true,
+    IgnoreShots = true,
+    IgnoreInventory = true,
+    IgnoreHealth = true,
+    IgnoreContainers = true
+};
+
+var reader = new ReplayReader(settings: settings);
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+```
+
+<Note>
+  Settings filters are applied in the `OnExportRead` method (FortniteReplayReader.cs:82-197). Even with `ParseType.Full`, ignored export types won't be processed.
+</Note>
+
+## TotalPropertiesRead
+
+Track parsing progress using the `TotalPropertiesRead` property:
+
+```csharp
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+
+Console.WriteLine($"Total properties read: {reader.TotalPropertiesRead}");
+```
+
+This counter increments for every export processed, providing insight into replay complexity and parsing performance.
+
+## Performance Optimization Tips
+
+1. **Start Minimal:** Use `ParseType.Minimal` and enable specific groups with `SetParseType`
+2. **Filter Early:** Use settings to ignore unnecessary data types before parsing
+3. **Monitor Progress:** Track `TotalPropertiesRead` to identify performance bottlenecks
+4. **Conditional Processing:** Check `ParseType` in custom handlers to avoid unnecessary work
+
+```csharp
+if (ParseType >= ParseType.Normal)
+{
+    // Only process this expensive operation if necessary
+    ProcessDetailedPlayerData(playerPawn);
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="NetField Exports" icon="network-wired" href="/advanced/net-field-exports">
+    Learn about the NetField export system
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/advanced/troubleshooting">
+    Debug common parsing issues
+  </Card>
+</CardGroup>

@@ -1,0 +1,499 @@
+---
+title: Performance Optimization
+description: Learn techniques to optimize replay parsing speed and reduce memory usage
+icon: gauge-high
+---
+
+## Overview
+
+Parsing Fortnite replays can be resource-intensive, especially for large matches or when processing multiple files. This guide covers techniques to optimize parsing performance through parse type selection, settings configuration, and advanced control methods.
+
+## Parse Type Selection
+
+The most impactful optimization is choosing the appropriate `ParseType` for your needs.
+
+### Parse Type Performance Comparison
+
+<CardGroup cols={2}>
+  <Card title="EventsOnly" icon="rabbit-fast">
+    **Fastest** - Parses only events
+    
+    Use when you only need:
+    - Eliminations
+    - Match stats
+    - Team stats
+  </Card>
+  
+  <Card title="Minimal" icon="forward-fast">
+    **Very Fast** - Events + basic game state
+    
+    Use when you need:
+    - Events
+    - Player names and IDs
+    - Team information
+  </Card>
+  
+  <Card title="Normal" icon="forward">
+    **Moderate** - Events + full game state
+    
+    Use when you need:
+    - Everything above
+    - Player locations
+    - Inventory tracking
+  </Card>
+  
+  <Card title="Full" icon="gauge">
+    **Slow** - Everything available
+    
+    Use when you need:
+    - Complete match data
+    - All tracking enabled
+  </Card>
+</CardGroup>
+
+### Parse Type Usage Examples
+
+<Tabs>
+  <Tab title="Events Only">
+    ```csharp
+    // Fastest - only parse events
+    var reader = new ReplayReader();
+    var replay = reader.ReadReplay(file, ParseType.EventsOnly);
+    
+    // Available data:
+    var eliminations = replay.Eliminations;
+    var stats = replay.Stats;
+    var teamStats = replay.TeamStats;
+    
+    // NOT available:
+    // - Player locations
+    // - Inventory data
+    // - Health tracking
+    ```
+  </Tab>
+  
+  <Tab title="Minimal">
+    ```csharp
+    // Very fast - events + basic game state
+    var reader = new ReplayReader();
+    var replay = reader.ReadReplay(file, ParseType.Minimal);
+    
+    // Available data:
+    var eliminations = replay.Eliminations;
+    var players = replay.GameInformation.Players;
+    var teams = replay.GameInformation.Teams;
+    
+    // Player names, IDs, placement available
+    // Locations and inventory NOT available
+    ```
+  </Tab>
+  
+  <Tab title="Normal">
+    ```csharp
+    // Moderate speed - events + full game state
+    var reader = new ReplayReader();
+    var replay = reader.ReadReplay(file, ParseType.Normal);
+    
+    // Available data:
+    var players = replay.GameInformation.Players;
+    var locations = players.First().Locations;
+    var inventory = players.First().CurrentInventory;
+    
+    // Most data available, good balance
+    ```
+  </Tab>
+  
+  <Tab title="Full">
+    ```csharp
+    // Slowest - everything
+    var reader = new ReplayReader();
+    var replay = reader.ReadReplay(file, ParseType.Full);
+    
+    // All data available
+    // Use only when needed
+    ```
+  </Tab>
+</Tabs>
+
+## Settings Optimization
+
+Configure `FortniteReplaySettings` to skip unnecessary data processing.
+
+### Performance-Focused Presets
+
+<AccordionGroup>
+  <Accordion title="Maximum Speed - Events Only">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.None,
+        IgnoreHealth = true,
+        IgnoreContainers = true,
+        IgnoreShots = true,
+        IgnoreInventory = true,
+        IgnoreFloorLoot = true,
+        IgnoreWeaponSwitches = true
+    };
+    
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Minimal);
+    ```
+    
+    **Performance Gain:** 50-70% faster than default
+    
+    **Best For:**
+    - Elimination tracking
+    - Leaderboard generation
+    - Match statistics
+  </Accordion>
+  
+  <Accordion title="Balanced - Essential Data">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.User,
+        LocationChangeDeltaMS = 1000,  // 1 second intervals
+        IgnoreFloorLoot = true,
+        IgnoreContainers = true,
+        IgnoreWeaponSwitches = true
+    };
+    
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Normal);
+    ```
+    
+    **Performance Gain:** 30-40% faster than default
+    
+    **Best For:**
+    - Personal stats tracking
+    - Performance analysis
+    - Most common use cases
+  </Accordion>
+  
+  <Accordion title="Team Analysis">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.Team,
+        LocationChangeDeltaMS = 500,
+        IgnoreFloorLoot = true,
+        IgnoreContainers = true
+    };
+    
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Full);
+    ```
+    
+    **Performance Gain:** 20-30% faster than default
+    
+    **Best For:**
+    - Team coordination analysis
+    - Squad performance tracking
+  </Accordion>
+</AccordionGroup>
+
+### Location Tracking Optimization
+
+Location tracking is one of the most expensive operations:
+
+<CodeGroup>
+```csharp No Locations (Fastest)
+// Skip all location tracking
+PlayerLocationType = LocationTypes.None
+
+// Performance: 🚀 30-50% faster
+// Data loss: All player movement
+```
+
+```csharp User Only (Fast)
+// Only track replay owner
+PlayerLocationType = LocationTypes.User
+
+// Performance: 🏃 20-30% faster
+// Data loss: Other players' movement
+```
+
+```csharp Team Only (Moderate)
+// Track replay owner + teammates
+PlayerLocationType = LocationTypes.Team
+
+// Performance: 🏃 10-20% faster
+// Data loss: Enemy movement
+```
+
+```csharp All Locations (Slow)
+// Track all players
+PlayerLocationType = LocationTypes.All
+
+// Performance: 🐌 Baseline
+// Data loss: None
+```
+</CodeGroup>
+
+### Location Delta Optimization
+
+Reduce location frequency to minimize data volume:
+
+```csharp
+// Capture every location update (most data, slowest)
+LocationChangeDeltaMS = 0
+
+// Capture every second (good balance)
+LocationChangeDeltaMS = 1000
+
+// Capture every 5 seconds (minimal data, fastest)
+LocationChangeDeltaMS = 5000
+```
+
+<Tip>
+For most use cases, `LocationChangeDeltaMS = 1000` provides sufficient accuracy with significant performance improvement.
+</Tip>
+
+## Advanced: Granular Parse Control
+
+For fine-grained control, use the `SetParseType` method to configure parsing for specific groups:
+
+```csharp
+var reader = new ReplayReader();
+
+// Configure specific parsing groups
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Normal);
+
+// Then read the replay
+var replay = reader.ReadReplay(file, ParseType.Minimal);
+```
+
+### Available Parsing Groups
+
+<ParamField path="ParsingGroup.PlayerPawn" type="ParsingGroup">
+  Controls parsing of:
+  - Player locations (PlayerPawnC)
+  - Bot locations (inherited types)
+  - Vehicle locations (BaseVehicle)
+</ParamField>
+
+### Example: Location-Only Parsing
+
+```csharp
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    IgnoreHealth = true,
+    IgnoreShots = true,
+    IgnoreInventory = true,
+    IgnoreFloorLoot = true,
+    IgnoreContainers = true
+};
+
+var reader = new ReplayReader(null, settings);
+
+// Parse player pawns for locations
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Normal);
+
+// Use minimal parse for everything else
+var replay = reader.ReadReplay(file, ParseType.Minimal);
+
+// Result: Fast parsing with location data
+```
+
+## Performance Benchmarking
+
+Here's a real-world example from ConsoleReader showing performance measurement:
+
+```csharp ConsoleReader/Program.cs:16-69
+var sw = new Stopwatch();
+double totalTime = 0;
+int count = 0;
+List<double> times = new();
+
+var reader = new ReplayReader(null, new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None,
+});
+
+foreach (string replayFile in Directory.GetFiles(@"Replays\\"))
+{
+    Console.WriteLine(replayFile);
+    
+    for (int i = 0; i < 2; i++)
+    {
+        ++count;
+        
+        sw.Restart();
+        var replay = reader.ReadReplay(replayFile, ParseType.Full);
+        sw.Stop();
+        
+        Console.WriteLine($"Elapsed: {sw.ElapsedMilliseconds}ms");
+        Console.WriteLine($"Total Groups Read: {reader?.TotalGroupsRead}");
+        Console.WriteLine($"Failed Bunches: {reader?.TotalFailedBunches}");
+        
+        totalTime += sw.Elapsed.TotalMilliseconds;
+        times.Add(sw.Elapsed.TotalMilliseconds);
+    }
+    
+    Console.WriteLine();
+}
+
+var fastest5 = times.OrderBy(x => x).Take(10);
+
+Console.WriteLine($"Total Time: {totalTime}ms");
+Console.WriteLine($"Average: {((double)totalTime / count):0.00}ms");
+Console.WriteLine($"Fastest 10 Average: {(fastest5.Sum() / fastest5.Count()):0.00}ms");
+```
+
+### Benchmarking Your Configuration
+
+Create a simple benchmark to test different configurations:
+
+```csharp
+using System.Diagnostics;
+
+void BenchmarkConfiguration(string name, FortniteReplaySettings settings, ParseType parseType)
+{
+    var reader = new ReplayReader(null, settings);
+    var sw = Stopwatch.StartNew();
+    
+    var replay = reader.ReadReplay("test.replay", parseType);
+    
+    sw.Stop();
+    Console.WriteLine($"{name}: {sw.ElapsedMilliseconds}ms");
+}
+
+// Test different configurations
+BenchmarkConfiguration("Minimal", new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None,
+    IgnoreHealth = true,
+    IgnoreShots = true,
+    IgnoreInventory = true,
+    IgnoreFloorLoot = true
+}, ParseType.Minimal);
+
+BenchmarkConfiguration("Balanced", new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.User,
+    LocationChangeDeltaMS = 1000,
+    IgnoreFloorLoot = true
+}, ParseType.Normal);
+
+BenchmarkConfiguration("Full", new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 0
+}, ParseType.Full);
+```
+
+## Memory Optimization
+
+For processing many replays, consider these memory management techniques:
+
+### Process One at a Time
+
+```csharp
+foreach (var file in replayFiles)
+{
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Minimal);
+    
+    // Extract needed data
+    var data = ExtractEssentialData(replay);
+    
+    // Allow GC to collect replay
+    replay = null;
+    reader = null;
+    
+    // Process extracted data
+    ProcessData(data);
+}
+```
+
+### Stream Processing
+
+```csharp
+// Process replays as a stream
+var results = replayFiles
+    .Select(file => {
+        using var reader = new ReplayReader();
+        var replay = reader.ReadReplay(file, ParseType.Minimal);
+        return new {
+            File = file,
+            Eliminations = replay.Eliminations.Count,
+            Winner = replay.GameInformation.Players
+                .FirstOrDefault(p => p.Placement == 1)?.DisplayName
+        };
+    })
+    .ToList();
+```
+
+### Limit Data Collection
+
+```csharp
+// Only extract what you need
+var playerStats = replay.GameInformation.Players
+    .Select(p => new PlayerSummary
+    {
+        Name = p.DisplayName,
+        Kills = p.TotalKills,
+        Placement = p.Placement
+        // Don't store: Locations, Shots, Inventory
+    })
+    .ToList();
+
+// Clear references to allow GC
+replay = null;
+```
+
+## Performance Tips Summary
+
+<Steps>
+  <Step title="Choose the Right Parse Type">
+    Use the lowest `ParseType` that meets your needs:
+    - `EventsOnly` for eliminations only
+    - `Minimal` for basic player info
+    - `Normal` for location tracking
+    - `Full` only when necessary
+  </Step>
+  
+  <Step title="Configure Settings">
+    Disable unnecessary tracking:
+    - Set `PlayerLocationType = None` if locations not needed
+    - Increase `LocationChangeDeltaMS` to reduce location frequency
+    - Enable `Ignore*` flags for unused data
+  </Step>
+  
+  <Step title="Use Granular Control">
+    For advanced scenarios, use `SetParseType` for fine-grained control
+  </Step>
+  
+  <Step title="Manage Memory">
+    Process replays one at a time and extract only needed data
+  </Step>
+</Steps>
+
+## Performance Impact Table
+
+| Optimization | Performance Gain | Data Impact |
+|-------------|------------------|-------------|
+| `ParseType.EventsOnly` | 🚀🚀🚀 60-80% | Only events |
+| `ParseType.Minimal` | 🚀🚀 40-60% | Basic game state |
+| `PlayerLocationType = None` | 🚀 30-50% | No locations |
+| `LocationChangeDeltaMS = 1000` | 🏃 15-25% | Reduced location frequency |
+| `IgnoreFloorLoot = true` | 🏃 10-20% | No floor loot |
+| `IgnoreInventory = true` | 🏃 10-15% | No inventory |
+| `IgnoreShots = true` | 🚶 5-10% | No shot data |
+| `IgnoreHealth = true` | 🚶 5-10% | No health updates |
+
+<Note>
+Performance gains are approximate and vary based on replay size, match duration, and hardware.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Learn more about FortniteReplaySettings
+  </Card>
+  <Card title="Reading Replays" icon="file-code" href="/guides/reading-replays">
+    Back to reading replay basics
+  </Card>
+</CardGroup>

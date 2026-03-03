@@ -1,0 +1,199 @@
+---
+title: Reading Replay Files
+description: Learn how to read and parse Fortnite replay files using the ReplayReader class
+icon: file-code
+---
+
+## Overview
+
+The `ReplayReader` class provides methods to read and parse Fortnite replay files. You can read from either a file path or a stream, and control the level of detail parsed using the `ParseType` parameter.
+
+## Basic Usage
+
+### Reading from a File Path
+
+The simplest way to read a replay is using the `ReadReplay(string fileName)` method:
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using Unreal.Core.Models.Enums;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay", ParseType.Full);
+
+// Access parsed data
+var players = replay.GameInformation.Players;
+var eliminations = replay.Eliminations;
+var stats = replay.Stats;
+```
+
+### Reading from a Stream
+
+For more control, you can read from a stream using `ReadReplay(Stream stream)`:
+
+```csharp
+using var stream = File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+var replay = reader.ReadReplay(stream, ParseType.Full);
+```
+
+<Note>
+The stream is automatically wrapped in a `BinaryReader` and disposed after reading.
+</Note>
+
+## Parse Type Parameters
+
+The `ParseType` enum controls how much data is extracted from the replay:
+
+<CardGroup cols={2}>
+  <Card title="EventsOnly" icon="filter">
+    Parses only events (eliminations, match stats, etc.)
+  </Card>
+  <Card title="Minimal" icon="minimize">
+    Parses events and initial game state
+  </Card>
+  <Card title="Normal" icon="gauge">
+    Parses events and full game state
+  </Card>
+  <Card title="Full" icon="maximize">
+    Parses everything currently handled
+  </Card>
+</CardGroup>
+
+### Parse Type Comparison
+
+| Parse Type | Events | Game State | Player Locations | Inventory | Floor Loot |
+|------------|--------|------------|------------------|-----------|------------|
+| EventsOnly | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Minimal | ✅ | Basic | ❌ | ❌ | ❌ |
+| Normal | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Full | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+<Warning>
+Higher parse types take longer and consume more memory. Use the lowest parse type that meets your needs.
+</Warning>
+
+## Complete Example from ConsoleReader
+
+Here's a real-world example from the ConsoleReader project:
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+
+class Program
+{
+    static void Main()
+    {
+        // Setup logging
+        var serviceCollection = new ServiceCollection()
+            .AddLogging(loggingBuilder => loggingBuilder
+                .AddConsole()
+                .SetMinimumLevel(LogLevel.Warning));
+        var provider = serviceCollection.BuildServiceProvider();
+        var logger = provider.GetService<ILogger<Program>>();
+
+        // Create reader with settings
+        var reader = new ReplayReader(logger, new FortniteReplaySettings
+        {
+            PlayerLocationType = LocationTypes.None,
+        });
+
+        // Read replay files
+        foreach (string replayFile in Directory.GetFiles(@"Replays\\"))
+        {
+            Console.WriteLine(replayFile);
+
+            var sw = Stopwatch.StartNew();
+            var replay = reader.ReadReplay(replayFile, ParseType.Full);
+            sw.Stop();
+
+            // Access parsed data
+            var players = replay.GameInformation.Players.OrderBy(x => x.Placement);
+
+            Console.WriteLine($"Elapsed: {sw.ElapsedMilliseconds}ms");
+            Console.WriteLine($"Total Players: {players.Count()}");
+        }
+    }
+}
+```
+
+## Constructor Options
+
+The `ReplayReader` constructor accepts optional parameters:
+
+```csharp
+public ReplayReader(ILogger logger = null, FortniteReplaySettings settings = null)
+```
+
+- **logger**: Optional `ILogger` for diagnostic output
+- **settings**: Optional `FortniteReplaySettings` to configure parsing behavior
+
+<CodeGroup>
+```csharp Basic
+var reader = new ReplayReader();
+```
+
+```csharp With Logger
+var reader = new ReplayReader(logger);
+```
+
+```csharp With Settings
+var reader = new ReplayReader(null, new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    IgnoreHealth = false
+});
+```
+
+```csharp Full Configuration
+var reader = new ReplayReader(logger, new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.Team,
+    LocationChangeDeltaMS = 1000,
+    IgnoreFloorLoot = true
+});
+```
+</CodeGroup>
+
+## Accessing Parsed Data
+
+Once you've read a replay, access data through the `FortniteReplay` object:
+
+```csharp
+var replay = reader.ReadReplay(replayFile, ParseType.Full);
+
+// Game information
+var gameInfo = replay.GameInformation;
+var players = gameInfo.Players;
+var teams = gameInfo.Teams;
+var safeZones = gameInfo.SafeZones;
+
+// Events
+var eliminations = replay.Eliminations;
+var matchStats = replay.Stats;
+var teamStats = replay.TeamStats;
+
+// Metadata
+var header = replay.Header;
+var info = replay.Info;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Learn about FortniteReplaySettings options
+  </Card>
+  <Card title="Player Data" icon="users" href="/guides/extracting-player-data">
+    Extract player locations, inventory, and more
+  </Card>
+  <Card title="Game Events" icon="bolt" href="/guides/game-events">
+    Work with eliminations and match events
+  </Card>
+  <Card title="Performance" icon="gauge-high" href="/guides/performance-optimization">
+    Optimize parsing for better performance
+  </Card>
+</CardGroup>

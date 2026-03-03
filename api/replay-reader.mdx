@@ -1,0 +1,198 @@
+---
+title: 'ReplayReader'
+description: 'Main class for reading and parsing Fortnite replay files'
+---
+
+The `ReplayReader` class is the core component of the Fortnite Replay Decompressor library. It provides methods to read, parse, and extract data from Fortnite replay files with configurable parsing levels.
+
+## Constructor
+
+```csharp
+public ReplayReader(
+    ILogger logger = null,
+    FortniteReplaySettings settings = null
+)
+```
+
+Creates a new instance of the ReplayReader.
+
+<ParamField path="logger" type="ILogger" default="null">
+  Optional logger instance for debugging and diagnostic output. Uses Microsoft.Extensions.Logging.
+</ParamField>
+
+<ParamField path="settings" type="FortniteReplaySettings" default="null">
+  Optional settings to configure parsing behavior. If not provided, default settings will be used.
+</ParamField>
+
+## Methods
+
+### ReadReplay (File Path)
+
+```csharp
+public FortniteReplay ReadReplay(
+    string fileName,
+    ParseType parseType = ParseType.Minimal
+)
+```
+
+Reads and parses a replay file from the specified file path.
+
+<ParamField path="fileName" type="string" required>
+  The full path to the replay file to read.
+</ParamField>
+
+<ParamField path="parseType" type="ParseType" default="ParseType.Minimal">
+  The level of detail to parse from the replay:
+  - `ParseType.Minimal` - Basic information only
+  - `ParseType.Normal` - Includes player pawns, pickups, and detailed events
+  - `ParseType.Full` - Complete parsing of all available data
+</ParamField>
+
+**Returns:** `FortniteReplay` object containing all parsed replay data.
+
+### ReadReplay (Stream)
+
+```csharp
+public FortniteReplay ReadReplay(
+    Stream stream,
+    ParseType parseType = ParseType.Minimal
+)
+```
+
+Reads and parses a replay from a stream.
+
+<ParamField path="stream" type="Stream" required>
+  The stream containing replay data.
+</ParamField>
+
+<ParamField path="parseType" type="ParseType" default="ParseType.Minimal">
+  The level of detail to parse from the replay.
+</ParamField>
+
+**Returns:** `FortniteReplay` object containing all parsed replay data.
+
+### SetParseType
+
+```csharp
+public void SetParseType(
+    ParsingGroup group,
+    ParseType type
+)
+```
+
+Configures the parsing behavior for specific groups of game objects.
+
+<ParamField path="group" type="ParsingGroup" required>
+  The group of objects to configure:
+  - `ParsingGroup.PlayerPawn` - Controls parsing of player positions, bot locations, and vehicle data
+</ParamField>
+
+<ParamField path="type" type="ParseType" required>
+  The parsing level to apply to this group.
+</ParamField>
+
+## Properties
+
+<ResponseField name="TotalPropertiesRead" type="int">
+  The total number of network properties that have been read from the replay. Useful for diagnostics and progress tracking.
+</ResponseField>
+
+<ResponseField name="Major" type="int">
+  The major version number of the Fortnite build that created the replay. Automatically extracted from the Branch property.
+</ResponseField>
+
+<ResponseField name="Minor" type="int">
+  The minor version number of the Fortnite build that created the replay. Automatically extracted from the Branch property.
+</ResponseField>
+
+<ResponseField name="Branch" type="string">
+  The full branch string from the replay header (e.g., "++Fortnite+Release-19.10"). Setting this property automatically updates Major and Minor versions.
+</ResponseField>
+
+## Usage Examples
+
+### Basic Usage
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+// Create reader with default settings
+var reader = new ReplayReader();
+
+// Read replay file
+var replay = reader.ReadReplay("path/to/replay.replay");
+
+Console.WriteLine($"Game Version: {reader.Major}.{reader.Minor}");
+Console.WriteLine($"Eliminations: {replay.Eliminations.Count}");
+```
+
+### With Custom Settings and Logging
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using Microsoft.Extensions.Logging;
+
+// Configure logging
+var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<ReplayReader>();
+
+// Configure custom settings
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    IgnoreFloorLoot = true,
+    IgnoreContainers = true
+};
+
+// Create reader
+var reader = new ReplayReader(logger, settings);
+
+// Read with full parsing
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Full
+);
+
+Console.WriteLine($"Properties Read: {reader.TotalPropertiesRead}");
+```
+
+### Reading from Stream
+
+```csharp
+using FortniteReplayReader;
+using System.IO;
+
+var reader = new ReplayReader();
+
+using (var stream = File.OpenRead("path/to/replay.replay"))
+{
+    var replay = reader.ReadReplay(stream, ParseType.Normal);
+    
+    foreach (var elimination in replay.Eliminations)
+    {
+        Console.WriteLine($"Elimination at {elimination.Timestamp}ms");
+    }
+}
+```
+
+### Configuring Specific Parse Groups
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models.Enums;
+
+var reader = new ReplayReader();
+
+// Set specific parsing for player locations
+reader.SetParseType(ParsingGroup.PlayerPawn, ParseType.Full);
+
+var replay = reader.ReadReplay("path/to/replay.replay");
+```
+
+## Related
+
+- [FortniteReplay](/api/fortnite-replay) - The replay data model returned by ReadReplay
+- [FortniteReplaySettings](/api/fortnite-replay-settings) - Configuration options for parsing behavior
+- [Getting Started](/introduction) - Complete guide to using the library

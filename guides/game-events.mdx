@@ -1,0 +1,460 @@
+---
+title: Game Events
+description: Extract and work with game events including eliminations, match stats, team stats, and safe zones
+icon: bolt
+---
+
+## Overview
+
+Fortnite replays contain rich event data that provides insights into match flow, eliminations, statistics, and game state changes. The `ReplayReader` automatically extracts these events during parsing.
+
+## Event Types
+
+Events are parsed in the `ReadEvent` method and categorized by type:
+
+- **Player Eliminations** - Kill events with detailed information
+- **Match Stats** - Player performance statistics
+- **Team Stats** - Team placement and player count
+- **Safe Zone Updates** - Storm circle progression
+- **Battle Bus** - Bus flight path data
+
+## Player Eliminations
+
+Eliminations are stored in `replay.Eliminations` and provide detailed kill information.
+
+### Accessing Eliminations
+
+```csharp
+using FortniteReplayReader;
+using Unreal.Core.Models.Enums;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.Minimal);
+
+foreach (var elim in replay.Eliminations)
+{
+    Console.WriteLine($"[{elim.Time}] {elim.Eliminator} eliminated {elim.Eliminated}");
+    Console.WriteLine($"Weapon: {elim.DeathCause}");
+    Console.WriteLine($"Knocked: {elim.Knocked}");
+    Console.WriteLine($"Distance: {elim.Distance:F2}m");
+    Console.WriteLine();
+}
+```
+
+### PlayerElimination Properties
+
+<ParamField path="Eliminated" type="string">
+  ID of the eliminated player
+</ParamField>
+
+<ParamField path="Eliminator" type="string">
+  ID of the player who got the elimination
+</ParamField>
+
+<ParamField path="DeathCause" type="EDeathCause">
+  Cause of death (weapon type, fall damage, storm, etc.)
+</ParamField>
+
+<ParamField path="Knocked" type="bool">
+  Whether this was a knock or full elimination
+</ParamField>
+
+<ParamField path="Timestamp" type="uint">
+  Time of elimination in milliseconds
+</ParamField>
+
+<ParamField path="Time" type="string">
+  Formatted timestamp (MM:SS)
+</ParamField>
+
+<ParamField path="Distance" type="double">
+  Distance between eliminator and eliminated in meters
+</ParamField>
+
+<ParamField path="ValidDistance" type="bool">
+  Whether distance calculation is valid
+</ParamField>
+
+<ParamField path="SelfElimination" type="bool">
+  Whether player eliminated themselves
+</ParamField>
+
+### Elimination Location Data
+
+Each elimination contains location information for both players:
+
+```csharp
+foreach (var elim in replay.Eliminations)
+{
+    // Eliminated player info
+    Console.WriteLine($"Eliminated Location: {elim.EliminatedInfo.Location}");
+    Console.WriteLine($"Eliminated Rotation: {elim.EliminatedInfo.Rotation}");
+    Console.WriteLine($"Player Type: {elim.EliminatedInfo.PlayerType}");
+    
+    // Eliminator info
+    Console.WriteLine($"Eliminator Location: {elim.EliminatorInfo.Location}");
+    Console.WriteLine($"Eliminator Rotation: {elim.EliminatorInfo.Rotation}");
+    Console.WriteLine($"Player Type: {elim.EliminatorInfo.PlayerType}");
+    
+    Console.WriteLine();
+}
+```
+
+### Filtering Eliminations
+
+<Tabs>
+  <Tab title="By Player">
+    ```csharp
+    var playerElims = replay.Eliminations
+        .Where(e => e.Eliminator == "player-epic-id")
+        .ToList();
+
+    Console.WriteLine($"Total Eliminations: {playerElims.Count}");
+    ```
+  </Tab>
+  <Tab title="Knocks vs Kills">
+    ```csharp
+    var knocks = replay.Eliminations.Where(e => e.Knocked).ToList();
+    var kills = replay.Eliminations.Where(e => !e.Knocked).ToList();
+
+    Console.WriteLine($"Knocks: {knocks.Count}");
+    Console.WriteLine($"Eliminations: {kills.Count}");
+    ```
+  </Tab>
+  <Tab title="Long Range">
+    ```csharp
+    var longRangeElims = replay.Eliminations
+        .Where(e => e.ValidDistance && e.Distance > 100)
+        .OrderByDescending(e => e.Distance)
+        .ToList();
+
+    foreach (var elim in longRangeElims)
+    {
+        Console.WriteLine($"{elim.Eliminator}: {elim.Distance:F2}m");
+    }
+    ```
+  </Tab>
+  <Tab title="Self Eliminations">
+    ```csharp
+    var selfElims = replay.Eliminations
+        .Where(e => e.SelfElimination)
+        .ToList();
+
+    Console.WriteLine($"Self eliminations: {selfElims.Count}");
+    ```
+  </Tab>
+</Tabs>
+
+## Match Statistics
+
+Match stats provide performance metrics for the replay owner:
+
+```csharp
+var stats = replay.Stats;
+
+if (stats != null)
+{
+    Console.WriteLine($"Accuracy: {stats.Accuracy:P2}");
+    Console.WriteLine($"Assists: {stats.Assists}");
+    Console.WriteLine($"Eliminations: {stats.Eliminations}");
+    Console.WriteLine($"Weapon Damage: {stats.WeaponDamage}");
+    Console.WriteLine($"Other Damage: {stats.OtherDamage}");
+    Console.WriteLine($"Revives: {stats.Revives}");
+    Console.WriteLine($"Damage Taken: {stats.DamageTaken}");
+    Console.WriteLine($"Damage to Structures: {stats.DamageToStructures}");
+    Console.WriteLine($"Materials Gathered: {stats.MaterialsGathered}");
+    Console.WriteLine($"Materials Used: {stats.MaterialsUsed}");
+    Console.WriteLine($"Total Traveled: {stats.TotalTraveled}m");
+}
+```
+
+### Stats Properties
+
+<ParamField path="Accuracy" type="float">
+  Weapon accuracy percentage (0-1)
+</ParamField>
+
+<ParamField path="Assists" type="uint">
+  Number of elimination assists
+</ParamField>
+
+<ParamField path="Eliminations" type="uint">
+  Total eliminations
+</ParamField>
+
+<ParamField path="WeaponDamage" type="uint">
+  Total damage dealt with weapons
+</ParamField>
+
+<ParamField path="OtherDamage" type="uint">
+  Damage from other sources (storm, fall, etc.)
+</ParamField>
+
+<ParamField path="Revives" type="uint">
+  Number of teammate revives
+</ParamField>
+
+<ParamField path="DamageTaken" type="uint">
+  Total damage taken
+</ParamField>
+
+<ParamField path="DamageToStructures" type="uint">
+  Damage dealt to structures
+</ParamField>
+
+<ParamField path="MaterialsGathered" type="uint">
+  Total materials harvested
+</ParamField>
+
+<ParamField path="MaterialsUsed" type="uint">
+  Total materials used for building
+</ParamField>
+
+<ParamField path="TotalTraveled" type="uint">
+  Distance traveled in meters
+</ParamField>
+
+## Team Statistics
+
+Team stats provide placement information:
+
+```csharp
+var teamStats = replay.TeamStats;
+
+if (teamStats != null)
+{
+    Console.WriteLine($"Team Placement: {teamStats.Position}");
+    Console.WriteLine($"Total Players: {teamStats.TotalPlayers}");
+}
+```
+
+## Safe Zone Information
+
+Safe zones track storm circle progression:
+
+```csharp
+var safeZones = replay.GameInformation.SafeZones;
+
+foreach (var zone in safeZones)
+{
+    Console.WriteLine($"Current Radius: {zone.CurrentRadius}");
+    Console.WriteLine($"Next Radius: {zone.NextRadius}");
+    Console.WriteLine($"Next Next Radius: {zone.NextNextRadius}");
+    Console.WriteLine($"Shrink Start: {zone.ShrinkStartTime}");
+    Console.WriteLine($"Shrink End: {zone.ShringEndTime}");
+    Console.WriteLine($"Last Center: {zone.LastCenter}");
+    Console.WriteLine($"Next Center: {zone.NextCenter}");
+    Console.WriteLine($"Next Next Center: {zone.NextNextCenter}");
+    Console.WriteLine();
+}
+```
+
+### SafeZone Properties
+
+<ParamField path="CurrentRadius" type="float">
+  Current storm circle radius
+</ParamField>
+
+<ParamField path="Radius" type="float">
+  Base radius at zone creation
+</ParamField>
+
+<ParamField path="NextRadius" type="float">
+  Radius after current shrink
+</ParamField>
+
+<ParamField path="NextNextRadius" type="float">
+  Radius for the following zone
+</ParamField>
+
+<ParamField path="ShrinkStartTime" type="float">
+  When the zone starts shrinking
+</ParamField>
+
+<ParamField path="ShringEndTime" type="float">
+  When the zone finishes shrinking
+</ParamField>
+
+<ParamField path="LastCenter" type="FVector">
+  Current zone center
+</ParamField>
+
+<ParamField path="NextCenter" type="FVector">
+  Next zone center
+</ParamField>
+
+<ParamField path="NextNextCenter" type="FVector">
+  Center for the following zone
+</ParamField>
+
+## Battle Bus Information
+
+Access battle bus flight paths:
+
+```csharp
+var gameState = replay.GameInformation.GameState;
+
+foreach (var bus in gameState.BusPaths)
+{
+    Console.WriteLine($"Flight Start Location: {bus.FlightStartLocation}");
+    Console.WriteLine($"Flight Rotation: {bus.FlightRotation}");
+    Console.WriteLine();
+}
+
+Console.WriteLine($"Aircraft Start Time: {gameState.AirCraftStartTime}");
+```
+
+## Game State Information
+
+The `GameState` object provides comprehensive match information:
+
+```csharp
+var gameState = replay.GameInformation.GameState;
+
+Console.WriteLine($"Session ID: {gameState.SessionId}");
+Console.WriteLine($"Match Time: {gameState.MatchTime}");
+Console.WriteLine($"Match End Time: {gameState.MatchEndTime}");
+Console.WriteLine($"Playlist ID: {gameState.PlaylistId}");
+Console.WriteLine($"Max Players: {gameState.MaxPlayers}");
+Console.WriteLine($"Total Teams: {gameState.TotalTeams}");
+Console.WriteLine($"Total Bots: {gameState.TotalBots}");
+Console.WriteLine($"Large Team Game: {gameState.LargeTeamGame}");
+Console.WriteLine($"Winning Team: {gameState.WinningTeam}");
+```
+
+## Supply Drops
+
+Track supply drop spawns and interactions:
+
+```csharp
+var supplyDrops = replay.GameInformation.SupplyDrops;
+
+foreach (var drop in supplyDrops)
+{
+    Console.WriteLine($"Location: {drop.Location}");
+    Console.WriteLine($"Spawn Time: {drop.SpawnTime}");
+    Console.WriteLine($"Opened: {drop.Opened}");
+    Console.WriteLine($"Destroyed: {drop.Destroyed}");
+    Console.WriteLine($"Balloon Popped: {drop.BalloonPopped}");
+    Console.WriteLine($"Spawned Items: {drop.SpawnedItems}");
+    Console.WriteLine();
+}
+```
+
+## Llamas
+
+Track llama spawns and interactions:
+
+```csharp
+var llamas = replay.GameInformation.Llamas;
+
+foreach (var llama in llamas)
+{
+    Console.WriteLine($"Location: {llama.Location}");
+    Console.WriteLine($"Opened: {llama.Opened}");
+    Console.WriteLine($"Destroyed: {llama.Destroyed}");
+    Console.WriteLine($"Spawned Items: {llama.SpawnedItems}");
+    Console.WriteLine();
+}
+```
+
+## Kill Feed
+
+Access the complete kill feed including knocks, eliminations, and revives:
+
+```csharp
+var killFeed = replay.GameInformation.KillFeed;
+
+foreach (var entry in killFeed)
+{
+    Console.WriteLine($"Time: {entry.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Player: {entry.Player?.DisplayName}");
+    Console.WriteLine($"State: {entry.CurrentPlayerState}");
+    
+    if (entry.FinisherOrDowner != null)
+    {
+        Console.WriteLine($"By: {entry.FinisherOrDowner.DisplayName}");
+    }
+    
+    if (entry.DeathCause != null)
+    {
+        Console.WriteLine($"Cause: {entry.DeathCause}");
+    }
+    
+    if (entry.Distance > 0)
+    {
+        Console.WriteLine($"Distance: {entry.Distance:F2}m");
+    }
+    
+    Console.WriteLine();
+}
+```
+
+## Complete Event Analysis Example
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using Unreal.Core.Models.Enums;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+
+Console.WriteLine("=== MATCH OVERVIEW ===");
+var gameState = replay.GameInformation.GameState;
+Console.WriteLine($"Session: {gameState.SessionId}");
+Console.WriteLine($"Playlist: {gameState.PlaylistId}");
+Console.WriteLine($"Players: {gameState.MaxPlayers}");
+Console.WriteLine($"Teams: {gameState.TotalTeams}");
+Console.WriteLine();
+
+Console.WriteLine("=== ELIMINATIONS ===");
+foreach (var elim in replay.Eliminations.OrderBy(e => e.Timestamp))
+{
+    var distance = elim.ValidDistance ? $" ({elim.Distance:F2}m)" : "";
+    var knocked = elim.Knocked ? " [KNOCKED]" : " [ELIMINATED]";
+    Console.WriteLine($"[{elim.Time}] {elim.Eliminator} -> {elim.Eliminated}{knocked}{distance}");
+}
+Console.WriteLine();
+
+if (replay.Stats != null)
+{
+    Console.WriteLine("=== PLAYER STATS ===");
+    Console.WriteLine($"Eliminations: {replay.Stats.Eliminations}");
+    Console.WriteLine($"Assists: {replay.Stats.Assists}");
+    Console.WriteLine($"Accuracy: {replay.Stats.Accuracy:P2}");
+    Console.WriteLine($"Damage Dealt: {replay.Stats.WeaponDamage}");
+    Console.WriteLine($"Damage Taken: {replay.Stats.DamageTaken}");
+    Console.WriteLine($"Materials Gathered: {replay.Stats.MaterialsGathered}");
+    Console.WriteLine();
+}
+
+if (replay.TeamStats != null)
+{
+    Console.WriteLine("=== TEAM STATS ===");
+    Console.WriteLine($"Placement: #{replay.TeamStats.Position}");
+    Console.WriteLine($"Total Players: {replay.TeamStats.TotalPlayers}");
+    Console.WriteLine();
+}
+
+Console.WriteLine("=== SAFE ZONES ===");
+int zoneNum = 1;
+foreach (var zone in replay.GameInformation.SafeZones)
+{
+    Console.WriteLine($"Zone {zoneNum++}");
+    Console.WriteLine($"  Radius: {zone.CurrentRadius} -> {zone.NextRadius}");
+    Console.WriteLine($"  Center: {zone.NextCenter}");
+    Console.WriteLine($"  Shrink: {zone.ShrinkStartTime:F2}s - {zone.ShringEndTime:F2}s");
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Player Data" icon="users" href="/guides/extracting-player-data">
+    Learn about extracting detailed player information
+  </Card>
+  <Card title="Performance" icon="gauge-high" href="/guides/performance-optimization">
+    Optimize event parsing for better performance
+  </Card>
+</CardGroup>

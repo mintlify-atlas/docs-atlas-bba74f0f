@@ -1,0 +1,452 @@
+---
+title: 'NetField Exports'
+description: 'Understanding the NetField export system and how the library processes replicated game data'
+icon: 'network-wired'
+---
+
+## What Are NetField Exports?
+
+NetField exports are the fundamental building blocks of Unreal Engine network replication. They represent individual properties and objects that are synchronized across the network during gameplay. In Fortnite replays, these exports contain all the game state data—from player positions to weapon stats to game events.
+
+## The INetFieldExportGroup Interface
+
+All NetField exports inherit from `INetFieldExportGroup`:
+
+```csharp
+public abstract class INetFieldExportGroup
+{
+    public Actor ChannelActor { get; internal set; }
+    public ExternalData ExternalData { get; internal protected set; }
+
+    public virtual bool ManualRead(string property, object value)
+    {
+        return false;
+    }
+}
+```
+
+### Key Components
+
+- **ChannelActor:** The actor associated with this export's network channel
+- **ExternalData:** Additional metadata about the export
+- **ManualRead:** Optional method for custom property deserialization
+
+## Export Types
+
+The library processes dozens of export types, each representing different aspects of the game. Here are the major categories:
+
+### Player-Related Exports
+
+<AccordionGroup>
+  <Accordion title="PlayerPawnC">
+    **Path:** `/Game/Athena/PlayerPawn_Athena.PlayerPawn_Athena_C`
+    
+    Represents a player's pawn (character) in the world. Contains:
+    
+    ```csharp
+    [NetFieldExportGroup("/Game/Athena/PlayerPawn_Athena.PlayerPawn_Athena_C", ParseType.Full)]
+    public class PlayerPawnC : INetFieldExportGroup
+    {
+        [NetFieldExport("Location", RepLayoutCmdType.PropertyVector100)]
+        public FVector Location { get; set; }
+        
+        [NetFieldExport("Rotation", RepLayoutCmdType.PropertyRotator)]
+        public FRotator Rotation { get; set; }
+        
+        [NetFieldExport("bIsDBNO", RepLayoutCmdType.PropertyBool)]
+        public bool? bIsDBNO { get; set; }
+        
+        [NetFieldExport("CurrentWeapon", RepLayoutCmdType.Property)]
+        public ActorGUID CurrentWeapon { get; set; }
+        
+        [NetFieldExport("Vehicle", RepLayoutCmdType.Property)]
+        public ActorGUID Vehicle { get; set; }
+        
+        [NetFieldExport("bIsSkydiving", RepLayoutCmdType.PropertyBool)]
+        public bool? bIsSkydiving { get; set; }
+        
+        [NetFieldExport("bIsParachuteOpen", RepLayoutCmdType.PropertyBool)]
+        public bool? bIsParachuteOpen { get; set; }
+        
+        // ... 100+ more properties
+    }
+    ```
+    
+    **Use Cases:** Player tracking, movement analysis, cosmetic data
+  </Accordion>
+
+  <Accordion title="FortPlayerState">
+    **Path:** `/Script/FortniteGame.FortPlayerStateAthena`
+    
+    Represents persistent player information:
+    
+    ```csharp
+    [NetFieldExportGroup("/Script/FortniteGame.FortPlayerStateAthena")]
+    public class FortPlayerState : INetFieldExportGroup
+    {
+        [NetFieldExport("PlayerNamePrivate", RepLayoutCmdType.PropertyString)]
+        public string PlayerNamePrivate { get; set; }
+        
+        [NetFieldExport("UniqueId", RepLayoutCmdType.PropertyNetId)]
+        public string UniqueId { get; set; }
+        
+        [NetFieldExport("TeamIndex", RepLayoutCmdType.Enum)]
+        public int? TeamIndex { get; set; }
+        
+        [NetFieldExport("Place", RepLayoutCmdType.PropertyInt)]
+        public int? Place { get; set; }
+        
+        [NetFieldExport("KillScore", RepLayoutCmdType.PropertyUInt32)]
+        public uint? KillScore { get; set; }
+        
+        [NetFieldExport("bIsABot", RepLayoutCmdType.PropertyBool)]
+        public bool? bIsABot { get; set; }
+        
+        [NetFieldExport("bDBNO", RepLayoutCmdType.PropertyBool)]
+        public bool? bDBNO { get; set; }
+        
+        [NetFieldExport("DeathCause", RepLayoutCmdType.Enum)]
+        public EDeathCause DeathCause { get; set; }
+    }
+    ```
+    
+    **Use Cases:** Player identification, stats, team info, elimination tracking
+  </Accordion>
+</AccordionGroup>
+
+### Game State Exports
+
+<AccordionGroup>
+  <Accordion title="GameStateC">
+    **Path:** `/Game/Athena/Athena_GameState.Athena_GameState_C`
+    
+    The central game state object containing match-wide information:
+    
+    ```csharp
+    [NetFieldExportGroup("/Game/Athena/Athena_GameState.Athena_GameState_C")]
+    public class GameStateC : INetFieldExportGroup
+    {
+        [NetFieldExport("GamePhase", RepLayoutCmdType.Enum)]
+        public EAthenaGamePhase GamePhase { get; set; }
+        
+        [NetFieldExport("PlayersLeft", RepLayoutCmdType.PropertyInt)]
+        public int? PlayersLeft { get; set; }
+        
+        [NetFieldExport("TeamsLeft", RepLayoutCmdType.PropertyInt)]
+        public int? TeamsLeft { get; set; }
+        
+        [NetFieldExport("SafeZonePhase", RepLayoutCmdType.PropertyByte)]
+        public byte? SafeZonePhase { get; set; }
+        
+        [NetFieldExport("AircraftStartTime", RepLayoutCmdType.PropertyFloat)]
+        public float? AircraftStartTime { get; set; }
+        
+        [NetFieldExport("TeamFlightPaths", RepLayoutCmdType.DynamicArray)]
+        public GameStateC[] TeamFlightPaths { get; set; }
+    }
+    ```
+    
+    **Use Cases:** Match progression, storm phases, player counts
+    
+    <Note>
+      `GameStateC` is **always** fully parsed regardless of `ParseType` setting.
+    </Note>
+  </Accordion>
+
+  <Accordion title="SafeZoneIndicatorC">
+    Storm circle/safe zone information:
+    
+    ```csharp
+    Replay.GameInformation.UpdateSafeZone(safeZoneIndicator);
+    ```
+    
+    **Use Cases:** Storm tracking, zone analysis, positioning strategies
+  </Accordion>
+</AccordionGroup>
+
+### Item & Weapon Exports
+
+<AccordionGroup>
+  <Accordion title="BaseWeapon">
+    Base class for all weapons:
+    
+    ```csharp
+    public class BaseWeapon : INetFieldExportGroup
+    {
+        [NetFieldExport("Owner", RepLayoutCmdType.Property)]
+        public NetworkGUID Owner { get; set; }
+        
+        [NetFieldExport("WeaponData", RepLayoutCmdType.Property)]
+        public ItemDefinitionGUID WeaponData { get; set; }
+        
+        [NetFieldExport("AmmoCount", RepLayoutCmdType.PropertyUInt32)]
+        public uint? AmmoCount { get; set; }
+        
+        [NetFieldExport("WeaponLevel", RepLayoutCmdType.PropertyUInt32)]
+        public uint? WeaponLevel { get; set; }
+        
+        [NetFieldExport("bIsReloadingWeapon", RepLayoutCmdType.PropertyBool)]
+        public bool? bIsReloadingWeapon { get; set; }
+    }
+    ```
+    
+    Inherited by: `Rifles`, `Shotguns`, `SMGs`, `Snipers`, `Pistols`, `Explosives`, `Throwable`, `Melee`, etc.
+  </Accordion>
+
+  <Accordion title="FortPickup">
+    Floor loot and dropped items:
+    
+    ```csharp
+    case FortPickup fortPickup:
+        if (ParseType >= ParseType.Normal)
+        {
+            if (!_fortniteSettings.IgnoreFloorLoot)
+            {
+                Replay.GameInformation.UpdateFortPickup(channel, fortPickup);
+            }
+        }
+        break;
+    ```
+    
+    **Use Cases:** Loot tracking, item spawn analysis
+  </Accordion>
+
+  <Accordion title="FortInventory">
+    Player inventory data:
+    
+    ```csharp
+    case FortInventory inventory:
+        if (!_fortniteSettings.IgnoreInventory)
+        {
+            Replay.GameInformation.UpdateFortInventory(channel, inventory);
+        }
+        break;
+    ```
+    
+    **Use Cases:** Loadout tracking, inventory management analysis
+  </Accordion>
+</AccordionGroup>
+
+### Combat Exports
+
+<AccordionGroup>
+  <Accordion title="BatchedDamage">
+    Damage events (shots, hits):
+    
+    ```csharp
+    case BatchedDamage batchedDamage:
+        if (!_fortniteSettings.IgnoreShots)
+        {
+            Replay.GameInformation.UpdateBatchedDamage(channel, batchedDamage);
+        }
+        break;
+    ```
+    
+    **Use Cases:** Combat analysis, accuracy tracking, damage dealt
+  </Accordion>
+
+  <Accordion title="HealthSet">
+    Player health and shield values:
+    
+    ```csharp
+    [NetFieldExportGroup("/Script/FortniteGame.FortRegenHealthSet", ParseType.Normal)]
+    public class HealthSet : IHandleNetFieldExportGroup
+    {
+        public float? HealthCurrentValue => HealthFortSet?.CurrentValue;
+        public float? HealthMaxValue => HealthFortSet?.Maximum;
+        public float? ShieldCurrentValue => ShieldFortSet?.CurrentValue;
+        public float? ShieldMaxValue => ShieldFortSet?.Maximum;
+        
+        public bool HealthChange => HealthFortSet?.CurrentValue != null;
+        public bool ShieldChange => ShieldFortSet?.CurrentValue != null;
+    }
+    ```
+    
+    **Use Cases:** Health tracking, shield monitoring, damage calculations
+  </Accordion>
+</AccordionGroup>
+
+### Building Exports
+
+<AccordionGroup>
+  <Accordion title="BaseStructure">
+    Player-built structures:
+    
+    ```csharp
+    case BaseStructure baseBuild:
+        Replay.GameInformation.UpdateBuild(channel, baseBuild);
+        break;
+    ```
+    
+    Includes: `Wood`, `Stone`, `Metal` classes
+    
+    **Use Cases:** Build tracking, editing analysis, structure placement
+  </Accordion>
+
+  <Accordion title="BaseProp">
+    Containers and props:
+    
+    ```csharp
+    case BaseProp prop:
+        if (!_fortniteSettings.IgnoreContainers)
+        {
+            Replay.GameInformation.UpdateContainer(channel, prop);
+        }
+        break;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Vehicle Exports
+
+<AccordionGroup>
+  <Accordion title="BaseVehicle">
+    Base class for all vehicles:
+    
+    ```csharp
+    case BaseVehicle vehicle:
+        Replay.GameInformation.UpdateVehicle(channel, vehicle);
+        break;
+    ```
+    
+    Inherited by: `BasicCar`, `BasicTruck`, `SportsCar`, `TaxiCab`, `Boat`, `LootShark`, etc.
+  </Accordion>
+</AccordionGroup>
+
+### Supply & Loot Exports
+
+<AccordionGroup>
+  <Accordion title="SupplyDropC & SupplyDropLlamaC">
+    ```csharp
+    case SupplyDropLlamaC llama:
+        Replay.GameInformation.UpdateLlama(channel, llama);
+        break;
+        
+    case SupplyDropC supplyDrop:
+        Replay.GameInformation.UpdateSupplyDrop(channel, supplyDrop);
+        break;
+    ```
+    
+    <Note>
+      These are **always** fully parsed regardless of `ParseType` setting.
+    </Note>
+  </Accordion>
+
+  <Accordion title="SearchableContainer">
+    Chests, ammo boxes, etc.:
+    
+    ```csharp
+    case SearchableContainer searchableContainer:
+        Replay.GameInformation.UpdateSearchableContainer(channel, searchableContainer);
+        break;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## How Exports Are Processed
+
+The processing flow (FortniteReplayReader.cs:82-198):
+
+```csharp
+protected override void OnExportRead(uint channel, INetFieldExportGroup exportGroup)
+{
+    ++TotalPropertiesRead;
+    
+    // Set up context for processing
+    Replay.GameInformation.NetGUIDToPathName = GuidCache.NetGuidToPathName;
+    Replay.GameInformation.Settings = _fortniteSettings;
+    
+    // Type-based routing
+    switch (exportGroup)
+    {
+        case PlayerPawnC playerPawn:
+            // Only process if ParseType is sufficient
+            if (ParseType >= ParseType.Normal)
+            {
+                Replay.GameInformation.UpdatePlayerPawn(channel, playerPawn);
+            }
+            break;
+            
+        case FortPlayerState playerState:
+            // Always process player state
+            Replay.GameInformation.UpdatePlayerState(
+                channel, 
+                playerState, 
+                GuidCache.NetworkGameplayTagNodeIndex
+            );
+            break;
+            
+        // ... more cases
+    }
+}
+```
+
+## Custom Export Handling
+
+To extend the library with custom export processing:
+
+```csharp
+public class CustomReplayReader : ReplayReader
+{
+    protected override void OnExportRead(uint channel, INetFieldExportGroup exportGroup)
+    {
+        base.OnExportRead(channel, exportGroup);
+        
+        // Custom handling for specific export types
+        switch (exportGroup)
+        {
+            case PlayerPawnC pawn when pawn.bIsSkydiving == true:
+                LogSkydivingEvent(channel, pawn);
+                break;
+                
+            case GameStateC gameState when gameState.PlayersLeft <= 10:
+                LogTopTenSituation(gameState);
+                break;
+        }
+    }
+}
+```
+
+## Export Attributes
+
+Exports use attributes for metadata:
+
+```csharp
+// Specify the Unreal path and minimum ParseType
+[NetFieldExportGroup("/Game/Path/To/Class.Class_C", ParseType.Normal)]
+public class MyExport : INetFieldExportGroup
+{
+    // Map individual properties
+    [NetFieldExport("PropertyName", RepLayoutCmdType.PropertyType)]
+    public PropertyType PropertyName { get; set; }
+}
+
+// Redirect to a different path
+[RedirectPath("AlternatePath")]
+public class RedirectedExport : INetFieldExportGroup
+{
+    // ...
+}
+```
+
+## Performance Considerations
+
+1. **Export Volume:** A typical replay processes 10,000-100,000+ exports
+2. **Selective Processing:** Use `ParseType` and settings to filter exports
+3. **Channel Tracking:** Exports are tied to network channels (uint identifiers)
+4. **Memory Usage:** Full parsing can consume significant memory for long replays
+
+<Warning>
+  Processing all exports at `ParseType.Full` can take several seconds for a complete match replay.
+</Warning>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Custom Parsing" icon="code" href="/advanced/custom-parsing">
+    Learn how to customize parsing behavior
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/advanced/troubleshooting">
+    Debug export processing issues
+  </Card>
+</CardGroup>

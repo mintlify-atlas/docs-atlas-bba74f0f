@@ -1,0 +1,135 @@
+---
+title: LocationTypes
+description: Enum that controls which players' locations are tracked during replay parsing
+---
+
+The `LocationTypes` enum determines which players' position data is captured during replay parsing. This allows you to filter location tracking based on your analysis needs.
+
+## Enum Values
+
+### All
+
+Grab all possible locations from any player.
+
+- **Captures**: Every player's position data in the replay
+- **Use case**: Complete map activity analysis, heatmaps, and full match tracking
+- **Performance**: Most data-intensive option
+
+### Team
+
+Grab locations from replay owner and all teammates.
+
+- **Captures**: Replay owner + all squad/team members
+- **Use case**: Team strategy analysis, squad positioning, and coordination tracking
+- **Performance**: Moderate data volume
+
+### User
+
+Only grab locations from replay owner.
+
+- **Captures**: Replay owner's position data only
+- **Use case**: Individual player tracking, personal performance analysis
+- **Performance**: Minimal data volume
+
+### None
+
+Grab no locations.
+
+- **Captures**: No position data
+- **Use case**: When location data is not needed for your analysis
+- **Performance**: Best performance when locations aren't required
+
+## Usage Example
+
+```csharp
+using FortniteReplayReader.Models;
+
+// Track all players' locations
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All
+};
+
+// Track only team members
+var teamSettings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.Team
+};
+
+// Track only replay owner
+var userSettings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.User
+};
+
+// Don't track any locations
+var noLocSettings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None
+};
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", settings);
+```
+
+## Use Case Examples
+
+### Heatmap Generation
+
+```csharp
+// Capture all player movements for full match heatmap
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 1000 // Sample every second
+};
+```
+
+### Team Strategy Analysis
+
+```csharp
+// Analyze squad positioning and rotations
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.Team,
+    LocationChangeDeltaMS = 500 // More frequent sampling
+};
+```
+
+### Personal Performance Review
+
+```csharp
+// Track only your own movements
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.User,
+    LocationChangeDeltaMS = 0 // Capture all location changes
+};
+```
+
+### Event-Only Analysis
+
+```csharp
+// Skip location tracking for elimination-only analysis
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None
+};
+```
+
+## Performance Considerations
+
+| Location Type | Players Tracked | Data Volume | Best For |
+|---------------|-----------------|-------------|----------|
+| All           | Everyone        | High        | Complete analysis, heatmaps |
+| Team          | Squad only      | Medium      | Team strategy, coordination |
+| User          | Owner only      | Low         | Personal tracking |
+| None          | Nobody          | None        | Non-location analysis |
+
+## Related Settings
+
+Combine `LocationTypes` with other `FortniteReplaySettings` properties:
+
+- **LocationChangeDeltaMS**: Control sampling frequency (0 = capture all changes)
+- **IgnoreHealth**: Skip health updates to reduce data
+- **IgnoreInventory**: Skip inventory tracking for performance

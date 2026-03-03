@@ -1,0 +1,339 @@
+---
+title: Encryption
+description: Working with encrypted Fortnite replay files
+---
+
+Fortnite replay files can be encrypted using AES encryption. The library automatically handles decryption when an encryption key is embedded in the replay file.
+
+## Encryption Overview
+
+Epic Games encrypts certain replay files to protect sensitive player data. The encryption uses AES (Rijndael) with ECB mode and PKCS7 padding.
+
+**What Gets Encrypted:**
+- Event data (eliminations, stats)
+- ReplayData chunks (network packets)
+- All game state information
+
+**What's Not Encrypted:**
+- Replay info header (metadata)
+- Replay header (version information)
+- Chunk type markers and sizes
+
+## Detecting Encrypted Replays
+
+The `ReplayInfo` class contains encryption information read from the file header:
+
+```csharp
+public class ReplayInfo
+{
+    public bool Encrypted { get; set; }        // Is this replay encrypted?
+    public byte[] EncryptionKey { get; set; }  // AES decryption key
+}
+```
+
+From `ReplayReader.cs:569-574`, the library validates encryption status:
+
+```csharp
+if (fileVersion >= ReplayVersionHistory.Encryption)
+{
+    info.Encrypted = archive.ReadUInt32AsBoolean();
+    info.EncryptionKey = archive.ReadArray(archive.ReadByte);
+}
+
+if (!info.IsLive && info.Encrypted && (info.EncryptionKey.Length == 0))
+{
+    throw new InvalidReplayException(
+        "Completed replay is marked encrypted but has no key!"
+    );
+}
+```
+
+<Warning>
+Replays marked as encrypted **must** have a valid encryption key in the header. If the key is missing, parsing will fail with `InvalidReplayException`.
+</Warning>
+
+## Automatic Decryption
+
+The library automatically decrypts replay data when processing events and chunks. No special code is required:
+
+```csharp
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("encrypted.replay", ParseType.Minimal);
+
+// Data is automatically decrypted
+Console.WriteLine($"Eliminations: {replay.Eliminations.Count}");
+Console.WriteLine($"Encrypted: {replay.Info.Encrypted}");
+```
+
+### Decryption Implementation
+
+The `Decrypt()` method in `FortniteReplayReader.cs:489-527` handles all decryption:
+
+```csharp
+protected override Unreal.Core.BinaryReader Decrypt(FArchive archive, int size)
+{
+    if (!this.Replay.Info.Encrypted)
+    {
+        // Not encrypted, return data as-is
+        var decryptedReader = new Unreal.Core.BinaryReader(
+            new MemoryStream(archive.ReadBytes(size))
+        );
+        decryptedReader.EngineNetworkVersion = Replay.Header.EngineNetworkVersion;
+        decryptedReader.NetworkVersion = Replay.Header.NetworkVersion;
+        decryptedReader.ReplayHeaderFlags = Replay.Header.Flags;
+        decryptedReader.ReplayVersion = Replay.Info.FileVersion;
+        
+        return decryptedReader;
+    }
+
+    // Decrypt encrypted data
+    var encryptedBytes = archive.ReadBytes(size);
+    var key = this.Replay.Info.EncryptionKey;
+
+    using RijndaelManaged rDel = new()
+    {
+        KeySize = (key.Length * 8),  // Key size in bits
+        Key = key,
+        Mode = CipherMode.ECB,       // Electronic Codebook mode
+        Padding = PaddingMode.PKCS7  // PKCS7 padding
+    };
+
+    using ICryptoTransform cTransform = rDel.CreateDecryptor();
+    byte[] decryptedArray = cTransform.TransformFinalBlock(
+        encryptedBytes, 0, encryptedBytes.Length
+    );
+
+    var decrypted = new Unreal.Core.BinaryReader(new MemoryStream(decryptedArray));
+    // Set network versions...
+    
+    return decrypted;
+}
+```
+
+<Note>
+Decryption happens transparently for both events (via `ReadEvent()`) and replay data chunks (via `ReadReplayData()`). The same `Decrypt()` method is used for both.
+</Note>
+
+## AES Encryption Details
+
+Fortnite replays use the following AES configuration:
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| Algorithm | Rijndael (AES) | Advanced Encryption Standard |
+| Mode | ECB | Electronic Codebook |
+| Padding | PKCS7 | PKCS #7 padding scheme |
+| Key Size | 128/256 bits | Depends on key length |
+
+<Warning>
+ECB mode is generally not recommended for encryption due to security concerns (identical plaintext blocks produce identical ciphertext blocks). However, this is the mode Epic Games uses for replay files.
+</Warning>
+
+## Encryption Key Events
+
+Some replays contain encryption key events that provide additional decryption keys for specific player state data:
+
+```csharp
+public class EncryptionKey : BaseEvent
+{
+    public string Key { get; internal set; }  // 32-byte hex string
+}
+```
+
+These keys are parsed from events and stored in the game information:
+
+```csharp
+if (info.Metadata == ReplayEventTypes.ENCRYPTION_KEY)
+{
+    Replay.GameInformation.PlayerStateEncryptionKey = 
+        ParseEncryptionKeyEvent(decryptedReader, info);
+    return;
+}
+```
+
+From `FortniteReplayReader.cs:278-282` and `FortniteReplayReader.cs:316-323`:
+
+```csharp
+protected virtual EncryptionKey ParseEncryptionKeyEvent(FArchive archive, EventInfo info)
+{
+    return new EncryptionKey()
+    {
+        Info = info,
+        Key = archive.ReadBytesToString(32)  // Read 32-byte key as hex string
+    };
+}
+```
+
+<Tip>
+Player state encryption keys are separate from the main replay encryption key and are used for additional data protection layers.
+</Tip>
+
+## Checking Encryption Status
+
+You can check if a replay is encrypted before fully parsing it:
+
+```csharp
+public static bool IsReplayEncrypted(string filePath)
+{
+    using var stream = File.OpenRead(filePath);
+    using var archive = new Unreal.Core.BinaryReader(stream);
+    
+    // Read magic number
+    var magicNumber = archive.ReadUInt32();
+    if (magicNumber != ReplayReader<Replay>.FileMagic)
+    {
+        throw new InvalidReplayException("Invalid replay file");
+    }
+    
+    // Read file version
+    var fileVersion = archive.ReadUInt32AsEnum<ReplayVersionHistory>();
+    
+    // Skip to encryption flag
+    archive.ReadUInt32(); // LengthInMs
+    archive.ReadUInt32(); // NetworkVersion
+    archive.ReadUInt32(); // Changelist
+    archive.ReadFString(); // FriendlyName
+    archive.ReadUInt32AsBoolean(); // IsLive
+    
+    if (fileVersion >= ReplayVersionHistory.RecordedTimestamp)
+    {
+        archive.ReadInt64(); // Timestamp
+    }
+    
+    if (fileVersion >= ReplayVersionHistory.Compression)
+    {
+        archive.ReadUInt32AsBoolean(); // IsCompressed
+    }
+    
+    if (fileVersion >= ReplayVersionHistory.Encryption)
+    {
+        return archive.ReadUInt32AsBoolean(); // Encrypted flag
+    }
+    
+    return false;
+}
+```
+
+## Live Replays and Encryption
+
+Live (in-progress) replays cannot be encrypted. From `ReplayReader.cs:582-586`:
+
+```csharp
+if (info.IsLive && info.Encrypted)
+{
+    _logger?.LogError(
+        "ReadReplayInfo: Replay is marked encrypted and but not yet marked as completed!"
+    );
+    throw new InvalidReplayException(
+        "Replay is marked encrypted and but not yet marked as completed!"
+    );
+}
+```
+
+<Note>
+Only completed replays can be encrypted. Live replays that are still being recorded cannot have encryption applied.
+</Note>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Missing Encryption Key">
+    **Error:** `InvalidReplayException: Completed replay is marked encrypted but has no key!`
+    
+    **Cause:** The replay file is marked as encrypted but doesn't contain the decryption key in the header.
+    
+    **Solution:** This replay file is corrupted or was improperly saved. The encryption key should be embedded in the replay by the game when saving.
+  </Accordion>
+  
+  <Accordion title="Live Replay Marked as Encrypted">
+    **Error:** `InvalidReplayException: Replay is marked encrypted and but not yet marked as completed!`
+    
+    **Cause:** The replay file claims to be both live and encrypted, which is an invalid state.
+    
+    **Solution:** This indicates a corrupted or improperly formatted replay file. Wait for the replay to be fully written before parsing.
+  </Accordion>
+  
+  <Accordion title="Decryption Fails Silently">
+    **Symptom:** Events or data chunks appear empty or corrupted after parsing
+    
+    **Cause:** The encryption key in the header may be incorrect or the data may be corrupted.
+    
+    **Solution:** Verify the replay file is complete and not corrupted. Enable debug logging to see decryption details:
+    
+    ```csharp
+    var logger = LoggerFactory.Create(builder => 
+        builder.AddConsole().SetMinimumLevel(LogLevel.Debug)
+    ).CreateLogger<ReplayReader>();
+    
+    var reader = new ReplayReader(logger: logger);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Example: Handling Encrypted Replays
+
+```csharp
+using FortniteReplayReader;
+using Unreal.Core.Models.Enums;
+
+public void ProcessReplay(string filePath)
+{
+    var reader = new ReplayReader();
+    
+    try
+    {
+        var replay = reader.ReadReplay(filePath, ParseType.EventsOnly);
+        
+        Console.WriteLine($"Replay Encrypted: {replay.Info.Encrypted}");
+        
+        if (replay.Info.Encrypted)
+        {
+            Console.WriteLine($"Key Length: {replay.Info.EncryptionKey.Length} bytes");
+            Console.WriteLine($"Key Size: {replay.Info.EncryptionKey.Length * 8} bits");
+            
+            if (replay.GameInformation.PlayerStateEncryptionKey != null)
+            {
+                Console.WriteLine("Player state encryption key found");
+            }
+        }
+        
+        // Data is automatically decrypted
+        Console.WriteLine($"Eliminations: {replay.Eliminations.Count}");
+        Console.WriteLine($"Winner: {replay.GameInformation.GetWinner()?.PlayerName}");
+    }
+    catch (InvalidReplayException ex)
+    {
+        Console.WriteLine($"Failed to read replay: {ex.Message}");
+        
+        if (ex.Message.Contains("encrypted"))
+        {
+            Console.WriteLine("This replay has encryption issues.");
+        }
+    }
+}
+```
+
+## Security Considerations
+
+<Warning>
+**Do not rely on replay encryption for security-critical applications.** The encryption key is stored in plaintext within the replay file itself, making it easily accessible.
+</Warning>
+
+Replay encryption is designed to:
+- ✅ Prevent casual viewing/editing of replay files
+- ✅ Deter simple hex editors and basic analysis tools
+- ❌ **NOT** provide true security against determined attackers
+- ❌ **NOT** protect sensitive data (keys are embedded in the file)
+
+The encryption is primarily an obfuscation mechanism rather than a security measure.
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Replay Structure" icon="diagram-project" href="/concepts/replay-structure">
+    Learn which parts of the replay are encrypted
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    See basic replay parsing examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,290 @@
+---
+title: "PlayerElimination"
+description: "Represents a player elimination event with detailed information about both players"
+---
+
+The `PlayerElimination` class represents a single elimination event in a match, containing detailed information about both the eliminated player and the eliminator, including locations, death cause, and distance.
+
+## Overview
+
+Player eliminations are extracted from replay events and contain comprehensive data about each kill, including player positions, weapon used (via death cause), and whether it was a knock or final elimination.
+
+```csharp
+foreach (var elim in replay.PlayerEliminations)
+{
+    Console.WriteLine($"{elim.Eliminator} eliminated {elim.Eliminated}");
+    Console.WriteLine($"  Weapon: {elim.DeathCause}");
+    Console.WriteLine($"  Distance: {elim.Distance:F2}m");
+    Console.WriteLine($"  Knocked: {elim.Knocked}");
+}
+```
+
+## Properties
+
+<ResponseField name="EliminatedInfo" type="PlayerEliminationInfo" required>
+  Information about the eliminated player including:
+  - `Id`: Player's unique identifier
+  - `Location`: 3D position at time of elimination
+  - `Rotation`: Player rotation (FQuat)
+  - `Scale`: Player scale
+  - `PlayerType`: Type of player (Human, Bot, NamedBot)
+  - `IsBot`: Whether the player is a bot
+</ResponseField>
+
+<ResponseField name="EliminatorInfo" type="PlayerEliminationInfo" required>
+  Information about the eliminating player with same structure as EliminatedInfo.
+</ResponseField>
+
+<ResponseField name="Eliminated" type="string" required>
+  Quick accessor for eliminated player's ID (shorthand for `EliminatedInfo.Id`).
+</ResponseField>
+
+<ResponseField name="Eliminator" type="string" required>
+  Quick accessor for eliminator's ID (shorthand for `EliminatorInfo.Id`).
+</ResponseField>
+
+<ResponseField name="DeathCause" type="EDeathCause" required>
+  The cause of death/weapon type used for the elimination.
+  
+  Common values:
+  - `OutsideSafeZone`: Storm damage
+  - `FallDamage`: Fall damage
+  - `Pistol`, `Shotgun`, `Rifle`, `SMG`, `Sniper`: Weapon types
+  - `Explosion`: Explosive damage
+  - `Trapped`: Trap elimination
+  - `EDeathCause_MAX`: Unknown/default value
+</ResponseField>
+
+<ResponseField name="GunType" type="byte" required>
+  Numeric representation of the death cause (cast from `DeathCause` enum).
+</ResponseField>
+
+<ResponseField name="Knocked" type="bool" required>
+  Whether this was a knock (DBNO - Down But Not Out) rather than a final elimination.
+  
+  - `true`: Player was knocked (can be revived)
+  - `false`: Player was eliminated (final kill)
+</ResponseField>
+
+<ResponseField name="Timestamp" type="uint" required>
+  Game time in milliseconds when the elimination occurred.
+</ResponseField>
+
+<ResponseField name="Time" type="string" required>
+  Formatted timestamp string (MM:SS or HH:MM:SS format).
+</ResponseField>
+
+<ResponseField name="Distance" type="double" required>
+  Distance in Unreal Units between eliminator and eliminated at time of elimination.
+  
+  Returns `-1` if distance is invalid (e.g., storm elimination where eliminator location is zero).
+  
+  <Note>To convert to meters, divide by 100. Distance is calculated from the 3D positions in `EliminatorInfo.Location` and `EliminatedInfo.Location`.</Note>
+</ResponseField>
+
+<ResponseField name="ValidDistance" type="bool" required>
+  Whether the distance calculation is valid. Returns `false` for environmental deaths where eliminator location is zero.
+</ResponseField>
+
+<ResponseField name="SelfElimination" type="bool" required>
+  Whether this is a self-elimination (player eliminated themselves). 
+  
+  Returns `true` when `Eliminated == Eliminator`.
+</ResponseField>
+
+## PlayerEliminationInfo Structure
+
+The nested `PlayerEliminationInfo` class contains detailed information about a player involved in an elimination:
+
+<Expandable title="PlayerEliminationInfo Properties">
+  <ResponseField name="Id" type="string" required>
+    Player's unique identifier (Epic ID or Bot ID).
+  </ResponseField>
+
+  <ResponseField name="Location" type="FVector" required>
+    3D world position with X, Y, Z coordinates (in Unreal Units).
+  </ResponseField>
+
+  <ResponseField name="Rotation" type="FQuat" required>
+    Player's rotation as a quaternion.
+  </ResponseField>
+
+  <ResponseField name="Scale" type="FVector" required>
+    Player's scale vector.
+  </ResponseField>
+
+  <ResponseField name="PlayerType" type="PlayerTypes" required>
+    Type of player:
+    - `PlayerTypes.Player`: Human player
+    - `PlayerTypes.Bot`: AI bot
+    - `PlayerTypes.NamedBot`: Named AI bot
+  </ResponseField>
+
+  <ResponseField name="IsBot" type="bool" required>
+    Convenience property returning `true` if PlayerType is Bot or NamedBot.
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+### Basic Elimination Info
+
+```csharp
+foreach (var elim in replay.PlayerEliminations)
+{
+    var time = TimeSpan.FromMilliseconds(elim.Timestamp);
+    Console.WriteLine($"[{time:mm\\:ss}] {elim.Eliminator} → {elim.Eliminated}");
+    
+    if (elim.Knocked)
+    {
+        Console.WriteLine("  (Knocked)");
+    }
+    else
+    {
+        Console.WriteLine("  (Eliminated)");
+    }
+    
+    Console.WriteLine($"  Weapon: {elim.DeathCause}");
+    
+    if (elim.ValidDistance)
+    {
+        Console.WriteLine($"  Distance: {elim.Distance / 100:F1}m");
+    }
+}
+```
+
+### Find Longest Elimination
+
+```csharp
+var longestKill = replay.PlayerEliminations
+    .Where(e => e.ValidDistance && !e.Knocked)
+    .OrderByDescending(e => e.Distance)
+    .FirstOrDefault();
+
+if (longestKill != null)
+{
+    var meters = longestKill.Distance / 100;
+    Console.WriteLine($"Longest elimination: {meters:F1}m");
+    Console.WriteLine($"  {longestKill.Eliminator} eliminated {longestKill.Eliminated}");
+    Console.WriteLine($"  Weapon: {longestKill.DeathCause}");
+    Console.WriteLine($"  Time: {longestKill.Time}");
+}
+```
+
+### Weapon Usage Analysis
+
+```csharp
+var weaponStats = replay.PlayerEliminations
+    .Where(e => !e.Knocked) // Only final kills
+    .GroupBy(e => e.DeathCause)
+    .Select(g => new 
+    { 
+        Weapon = g.Key, 
+        Kills = g.Count(),
+        AvgDistance = g.Where(e => e.ValidDistance)
+                       .Average(e => e.Distance) / 100
+    })
+    .OrderByDescending(x => x.Kills);
+
+Console.WriteLine("Weapon Statistics:");
+foreach (var stat in weaponStats)
+{
+    Console.WriteLine($"{stat.Weapon}:");
+    Console.WriteLine($"  Kills: {stat.Kills}");
+    Console.WriteLine($"  Avg Distance: {stat.AvgDistance:F1}m");
+}
+```
+
+### Bot vs Player Eliminations
+
+```csharp
+var botKills = replay.PlayerEliminations
+    .Count(e => e.EliminatedInfo.IsBot);
+
+var playerKills = replay.PlayerEliminations
+    .Count(e => !e.EliminatedInfo.IsBot);
+
+var botsKillingPlayers = replay.PlayerEliminations
+    .Count(e => e.EliminatorInfo.IsBot && !e.EliminatedInfo.IsBot);
+
+Console.WriteLine($"Bots Eliminated: {botKills}");
+Console.WriteLine($"Players Eliminated: {playerKills}");
+Console.WriteLine($"Bots Killed Players: {botsKillingPlayers}");
+```
+
+### Track Player Eliminations
+
+```csharp
+string trackPlayerId = "abc123...";
+
+var playerElims = replay.PlayerEliminations
+    .Where(e => e.Eliminator == trackPlayerId)
+    .ToList();
+
+Console.WriteLine($"Player's Eliminations: {playerElims.Count}");
+
+foreach (var elim in playerElims)
+{
+    Console.WriteLine($"  [{elim.Time}] Eliminated {elim.Eliminated}");
+    Console.WriteLine($"    Weapon: {elim.DeathCause}");
+    
+    if (elim.ValidDistance)
+    {
+        Console.WriteLine($"    Distance: {elim.Distance / 100:F1}m");
+    }
+    
+    Console.WriteLine($"    Knocked: {elim.Knocked}");
+}
+```
+
+### Storm/Environmental Deaths
+
+```csharp
+var stormDeaths = replay.PlayerEliminations
+    .Where(e => e.DeathCause == EDeathCause.OutsideSafeZone)
+    .ToList();
+
+var fallDeaths = replay.PlayerEliminations
+    .Where(e => e.DeathCause == EDeathCause.FallDamage)
+    .ToList();
+
+var selfElims = replay.PlayerEliminations
+    .Where(e => e.SelfElimination)
+    .ToList();
+
+Console.WriteLine($"Storm Eliminations: {stormDeaths.Count}");
+Console.WriteLine($"Fall Damage Deaths: {fallDeaths.Count}");
+Console.WriteLine($"Self Eliminations: {selfElims.Count}");
+```
+
+### Timeline of Eliminations
+
+```csharp
+var timeline = replay.PlayerEliminations
+    .OrderBy(e => e.Timestamp)
+    .ToList();
+
+Console.WriteLine("Match Kill Feed Timeline:");
+foreach (var elim in timeline)
+{
+    var icon = elim.Knocked ? "🟡" : "❌";
+    var time = TimeSpan.FromMilliseconds(elim.Timestamp);
+    
+    Console.WriteLine($"[{time:mm\\:ss}] {icon} {elim.Eliminator} → {elim.Eliminated}");
+    
+    if (elim.ValidDistance)
+    {
+        Console.WriteLine($"         {elim.DeathCause} ({elim.Distance / 100:F0}m)");
+    }
+    else
+    {
+        Console.WriteLine($"         {elim.DeathCause}");
+    }
+}
+```
+
+## Related Models
+
+- [Player](/api/models/player) - Player data and stats
+- [GameInformation](/api/models/game-information) - Access eliminations via KillFeed
+- [Stats](/api/models/stats) - Player statistics including total eliminations

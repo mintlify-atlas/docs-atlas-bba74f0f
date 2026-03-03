@@ -1,0 +1,82 @@
+---
+title: Introduction
+description: A high-performance C# library for parsing Fortnite replay files with support for multiple parse modes and encryption.
+---
+
+# Fortnite Replay Decompressor
+
+A powerful C# parser for Fortnite replay files that provides comprehensive data extraction with flexible parsing modes and advanced features.
+
+## What is Fortnite Replay Decompressor?
+
+Fortnite Replay Decompressor is a C# library that enables developers to parse and extract data from Fortnite replay files (.replay). The library provides access to detailed game information including player eliminations, match statistics, player positions, inventory changes, and much more.
+
+This is a fork of the original [FortniteReplayDecompressor](https://github.com/Shiqan/FortniteReplayDecompressor) with significant performance improvements and additional parsed data.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multiple Parse Modes" icon="gauge-high">
+    Choose between Minimal, Normal, and Full parse modes to balance performance and data completeness based on your needs.
+  </Card>
+  
+  <Card title="Encryption Support" icon="lock">
+    Built-in support for encrypted replay files with automatic decryption using AES encryption.
+  </Card>
+  
+  <Card title="Comprehensive Data Access" icon="database">
+    Extract eliminations, match stats, team stats, player states, inventory changes, weapon data, and more.
+  </Card>
+  
+  <Card title="Performance Optimized" icon="rocket">
+    Optimized for high-performance parsing with configurable options to ignore unnecessary data.
+  </Card>
+  
+  <Card title="Flexible Configuration" icon="sliders">
+    Fine-grained control over what data to parse with options to ignore health updates, shots, inventory, containers, and more.
+  </Card>
+  
+  <Card title="Location Tracking" icon="map-location-dot">
+    Track player locations with configurable options for all players, team only, user only, or none.
+  </Card>
+</CardGroup>
+
+## What Can You Parse?
+
+The library provides access to a wide range of game data:
+
+- **Player Eliminations**: Complete elimination data including eliminator, eliminated player, location, weapon, and death cause
+- **Match Statistics**: Accuracy, eliminations, assists, damage dealt, damage taken, materials gathered, and more
+- **Team Statistics**: Team placement and total players
+- **Game Information**: Player states, inventory, weapons, vehicles, buildings, supply drops, safe zone updates
+- **Player Tracking**: Player positions and movements throughout the match
+- **Events**: Battle bus flight path, zone updates, character samples
+
+## Get Started
+
+<CardGroup cols={3}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the library via NuGet package manager
+  </Card>
+  
+  <Card title="Quick Start" icon="bolt" href="/quickstart">
+    Parse your first replay file in minutes
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Learn about parse modes and settings
+  </Card>
+</CardGroup>
+
+## Special Thanks
+
+This library is built on the work of many contributors:
+
+- [Kuinox](https://github.com/Kuinox/ChartsNite) for collaboration on compression and replay file structure
+- [ApertureC](https://github.com/ApertureC/) for collaboration on UE4 network packets
+- [AlpaGit](https://github.com/AlpaGit) for detailed analysis work
+- [SL-x-TnT](https://github.com/SL-x-TnT) for amazing work on the NetFieldParser and other components
+
+## License
+
+Licensed under the [GNU General Public License](https://github.com/Shiqan/FortniteReplayDecompressor/blob/master/LICENSE).

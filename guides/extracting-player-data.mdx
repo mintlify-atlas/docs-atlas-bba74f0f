@@ -1,0 +1,455 @@
+---
+title: Extracting Player Data
+description: Learn how to extract and work with player data including locations, inventory, health, and weapons
+icon: users
+---
+
+## Overview
+
+The `GameInformation.Players` collection contains detailed information about all players in a match. Each `Player` object provides access to stats, locations, inventory, health changes, and more.
+
+## Accessing Players
+
+After parsing a replay, access players through the `GameInformation` object:
+
+```csharp
+using FortniteReplayReader;
+using Unreal.Core.Models.Enums;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+
+// Get all players
+var players = replay.GameInformation.Players;
+
+foreach (var player in players)
+{
+    Console.WriteLine($"{player.DisplayName} - Placement: {player.Placement}");
+}
+```
+
+## Player Properties
+
+The `Player` class exposes a wide range of properties:
+
+### Basic Information
+
+<ParamField path="DisplayName" type="string">
+  Player's display name (decoded from external player data)
+</ParamField>
+
+<ParamField path="EpicId" type="string">
+  Player's Epic Games ID
+</ParamField>
+
+<ParamField path="Platform" type="string">
+  Platform the player is using (PC, Console, Mobile)
+</ParamField>
+
+<ParamField path="IsBot" type="bool">
+  Whether the player is a bot
+</ParamField>
+
+<ParamField path="BotId" type="string">
+  Bot identifier if applicable
+</ParamField>
+
+<ParamField path="Teamindex" type="int">
+  Player's team index
+</ParamField>
+
+<ParamField path="Team" type="Team">
+  Reference to the player's team object
+</ParamField>
+
+### Match Stats
+
+```csharp
+var player = players.First();
+
+Console.WriteLine($"Kills: {player.TotalKills}");
+Console.WriteLine($"Team Kills: {player.TeamKills}");
+Console.WriteLine($"Placement: {player.Placement}");
+Console.WriteLine($"Level: {player.Level}");
+Console.WriteLine($"Thanked Bus Driver: {player.ThankedBusDriver}");
+```
+
+<ParamField path="TotalKills" type="uint">
+  Total eliminations by this player
+</ParamField>
+
+<ParamField path="TeamKills" type="uint">
+  Number of team eliminations
+</ParamField>
+
+<ParamField path="Placement" type="int">
+  Final placement in the match
+</ParamField>
+
+<ParamField path="Level" type="int">
+  Player's account level
+</ParamField>
+
+<ParamField path="ThankedBusDriver" type="bool">
+  Whether player thanked the bus driver
+</ParamField>
+
+### Player State
+
+```csharp
+var player = players.First();
+
+Console.WriteLine($"Is Replay Owner: {player.IsPlayersReplay}");
+Console.WriteLine($"Disconnected: {player.Disconnected}");
+Console.WriteLine($"Streamer Mode: {player.StreamerMode}");
+Console.WriteLine($"Anonymous Mode: {player.AnonMode}");
+```
+
+<ParamField path="IsPlayersReplay" type="bool">
+  True if this is the player who recorded the replay
+</ParamField>
+
+<ParamField path="Disconnected" type="bool">
+  Whether the player disconnected during the match
+</ParamField>
+
+<ParamField path="StreamerMode" type="bool">
+  Whether the player had streamer mode enabled
+</ParamField>
+
+<ParamField path="AnonMode" type="bool">
+  Whether the player had anonymous mode enabled
+</ParamField>
+
+## Location Tracking
+
+<Warning>
+Location tracking requires `ParseType.Normal` or higher and appropriate `PlayerLocationType` settings.
+</Warning>
+
+Players have multiple location collections depending on the data source:
+
+### Locations Collection
+
+The primary location tracking from player pawn updates:
+
+```csharp
+var player = players.First();
+
+foreach (var location in player.Locations)
+{
+    Console.WriteLine($"Time: {location.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Position: {location.Location}");
+    Console.WriteLine($"Yaw: {location.Yaw}");
+    Console.WriteLine($"In Vehicle: {location.InVehicle}");
+    Console.WriteLine($"State: {location.CurrentPlayerState}");
+    Console.WriteLine();
+}
+```
+
+<ParamField path="Locations" type="List<PlayerLocationRepMovement>">
+  Collection of player positions throughout the match
+</ParamField>
+
+**PlayerLocationRepMovement Properties:**
+
+- `Location` - FVector containing X, Y, Z coordinates
+- `Yaw` - Player's rotation/facing direction
+- `DeltaGameTimeSeconds` - Time since match start
+- `WorldTime` - Absolute world time
+- `InVehicle` - Whether player is in a vehicle
+- `CurrentPlayerState` - Player state (Alive, Knocked, Killed)
+- `MovementInformation` - Detailed movement state
+
+### PrivateTeamLocations Collection
+
+Locations from team information (usually less frequent):
+
+```csharp
+foreach (var location in player.PrivateTeamLocations)
+{
+    Console.WriteLine($"Position: {location.Location}");
+    Console.WriteLine($"Yaw: {location.Yaw}");
+    Console.WriteLine($"World Time: {location.WorldTime}");
+}
+```
+
+### Landing Location
+
+```csharp
+var player = players.First();
+
+if (player.LandingLocation != null)
+{
+    Console.WriteLine($"Landed at: {player.LandingLocation.Location}");
+    Console.WriteLine($"Landing time: {player.LandingLocation.WorldTime}");
+}
+```
+
+### Last Known Location
+
+```csharp
+var lastLocation = player.LastKnownLocation;
+if (lastLocation != null)
+{
+    Console.WriteLine($"Last known position: {lastLocation.Location}");
+}
+```
+
+## Inventory Tracking
+
+<Note>
+Inventory tracking requires `ParseType.Full` and `IgnoreInventory = false` in settings.
+</Note>
+
+### Current Inventory
+
+```csharp
+var player = players.First();
+
+foreach (var item in player.CurrentInventory.Items)
+{
+    Console.WriteLine($"Item: {item.Item.Name}");
+    Console.WriteLine($"Count: {item.Count}");
+    Console.WriteLine($"Loaded Ammo: {item.LoadedAmmo}");
+    Console.WriteLine($"Unique ID: {item.UniqueWeaponId}");
+    Console.WriteLine();
+}
+```
+
+<ParamField path="CurrentInventory" type="NetDeltaArray<InventoryItem>">
+  Player's current inventory items
+</ParamField>
+
+**InventoryItem Properties:**
+
+- `Item` - Item name and type information
+- `Count` - Stack count (e.g., ammo, materials)
+- `LoadedAmmo` - Ammo currently loaded in weapon
+- `UniqueWeaponId` - Unique identifier for this weapon instance
+- `Weapon` - Reference to the weapon object (if equipped)
+
+### Inventory on Death
+
+```csharp
+if (player.InventoryOnDeath.Any())
+{
+    Console.WriteLine($"Items at time of death:");
+    foreach (var item in player.InventoryOnDeath)
+    {
+        Console.WriteLine($"- {item.Item.Name} (x{item.Count})");
+    }
+}
+```
+
+## Weapon Data
+
+### Current Weapon
+
+```csharp
+var currentWeapon = player.CurrentWeapon;
+if (currentWeapon != null)
+{
+    Console.WriteLine($"Weapon: {currentWeapon.Item.Name}");
+    Console.WriteLine($"Level: {currentWeapon.WeaponLevel}");
+    Console.WriteLine($"Ammo: {currentWeapon.Ammo}");
+    Console.WriteLine($"Is Reloading: {currentWeapon.IsReloading}");
+    Console.WriteLine($"Is Equipping: {currentWeapon.IsEquipping}");
+}
+```
+
+### Weapon Switches
+
+<Note>
+Requires `IgnoreWeaponSwitches = false` in settings.
+</Note>
+
+```csharp
+foreach (var weaponSwitch in player.WeaponSwitches)
+{
+    Console.WriteLine($"Time: {weaponSwitch.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Weapon: {weaponSwitch.Weapon.Item.Name}");
+    Console.WriteLine($"State: {weaponSwitch.State}");
+    Console.WriteLine();
+}
+```
+
+## Health Tracking
+
+<Warning>
+Health tracking requires `IgnoreHealth = false` in settings.
+</Warning>
+
+```csharp
+foreach (var healthUpdate in player.HealthChanges)
+{
+    Console.WriteLine($"Time: {healthUpdate.DeltaGameTimeSeconds:F2}s");
+    
+    var health = healthUpdate.Health.HealthFortSet;
+    if (health != null)
+    {
+        Console.WriteLine($"Health: {health.CurrentValue}/{health.Maximum}");
+    }
+    
+    var shield = healthUpdate.Health.ShieldFortSet;
+    if (shield != null)
+    {
+        Console.WriteLine($"Shield: {shield.CurrentValue}/{shield.Maximum}");
+    }
+    
+    Console.WriteLine();
+}
+```
+
+## Combat Data
+
+### Shots Fired
+
+<Note>
+Requires `IgnoreShots = false` in settings.
+</Note>
+
+```csharp
+foreach (var shot in player.Shots)
+{
+    Console.WriteLine($"Time: {shot.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Weapon: {shot.Weapon?.Item.Name}");
+    Console.WriteLine($"Damage: {shot.Damage}");
+    Console.WriteLine($"Critical: {shot.IsCritical}");
+    Console.WriteLine($"Fatal: {shot.IsFatal}");
+    
+    if (shot.HitPlayerPawn != null)
+    {
+        var hitPlayer = shot.HitPlayerPawn as Player;
+        Console.WriteLine($"Hit: {hitPlayer?.DisplayName}");
+    }
+    
+    Console.WriteLine();
+}
+```
+
+### Damage Taken
+
+```csharp
+foreach (var damage in player.DamageTaken)
+{
+    Console.WriteLine($"Time: {damage.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Damage: {damage.Damage}");
+    Console.WriteLine($"Hit Shield: {damage.IsShield}");
+    Console.WriteLine($"Shield Destroyed: {damage.IsShieldDestroyed}");
+    
+    if (damage.ShotByPlayerPawn != null)
+    {
+        Console.WriteLine($"Attacker: {damage.ShotByPlayerPawn.DisplayName}");
+    }
+    
+    Console.WriteLine();
+}
+```
+
+## Status Changes
+
+Track player state changes (knocked, killed, revived):
+
+```csharp
+foreach (var status in player.StatusChanges)
+{
+    Console.WriteLine($"Time: {status.DeltaGameTimeSeconds:F2}s");
+    Console.WriteLine($"Player: {status.Player.DisplayName}");
+    Console.WriteLine($"State: {status.CurrentPlayerState}");
+    
+    if (status.FinisherOrDowner != null)
+    {
+        Console.WriteLine($"By: {status.FinisherOrDowner.DisplayName}");
+    }
+    
+    if (status.DeathCause != EDeathCause.EDeathCause_MAX)
+    {
+        Console.WriteLine($"Cause: {status.DeathCause}");
+    }
+    
+    Console.WriteLine();
+}
+```
+
+## Cosmetics
+
+Access player cosmetic items:
+
+```csharp
+var cosmetics = player.Cosmetics;
+
+Console.WriteLine($"Character: {cosmetics.Character}");
+Console.WriteLine($"Backpack: {cosmetics.Backpack}");
+Console.WriteLine($"Pickaxe: {cosmetics.Pickaxe}");
+Console.WriteLine($"Glider: {cosmetics.Glider}");
+Console.WriteLine($"Music Pack: {cosmetics.MusicPack}");
+Console.WriteLine($"Loading Screen: {cosmetics.LoadingScreen}");
+Console.WriteLine($"Sky Dive Contrail: {cosmetics.SkyDiveContrail}");
+Console.WriteLine($"Pet Skin: {cosmetics.PetSkin}");
+
+if (cosmetics.Dances != null)
+{
+    Console.WriteLine($"Dances: {string.Join(", ", cosmetics.Dances)}");
+}
+
+if (cosmetics.ItemWraps != null)
+{
+    Console.WriteLine($"Wraps: {string.Join(", ", cosmetics.ItemWraps)}");
+}
+```
+
+## Complete Example
+
+Here's a comprehensive example that extracts multiple types of player data:
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using Unreal.Core.Models.Enums;
+
+var reader = new ReplayReader(null, new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 1000,
+    IgnoreHealth = false,
+    IgnoreShots = false
+});
+
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+
+foreach (var player in replay.GameInformation.Players.OrderBy(p => p.Placement))
+{
+    Console.WriteLine($"\n=== {player.DisplayName ?? player.EpicId} ===");
+    Console.WriteLine($"Placement: {player.Placement}");
+    Console.WriteLine($"Kills: {player.TotalKills}");
+    Console.WriteLine($"Platform: {player.Platform}");
+    Console.WriteLine($"Is Bot: {player.IsBot}");
+    
+    if (player.LandingLocation != null)
+    {
+        Console.WriteLine($"Landing: {player.LandingLocation.Location}");
+    }
+    
+    Console.WriteLine($"Total Locations Tracked: {player.Locations.Count}");
+    Console.WriteLine($"Shots Fired: {player.Shots.Count}");
+    Console.WriteLine($"Damage Taken: {player.DamageTaken.Count}");
+    Console.WriteLine($"Health Changes: {player.HealthChanges.Count}");
+    
+    if (player.CurrentWeapon != null)
+    {
+        Console.WriteLine($"Final Weapon: {player.CurrentWeapon.Item.Name}");
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Game Events" icon="bolt" href="/guides/game-events">
+    Learn about elimination and event extraction
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Optimize settings for your use case
+  </Card>
+</CardGroup>

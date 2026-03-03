@@ -1,0 +1,225 @@
+---
+title: 'FortniteReplay'
+description: 'Data model representing a parsed Fortnite replay file'
+---
+
+The `FortniteReplay` class represents a fully parsed Fortnite replay file. It inherits from `Unreal.Core.Models.Replay` and adds Fortnite-specific properties for game events, statistics, and player information.
+
+## Inheritance
+
+```csharp
+public class FortniteReplay : Unreal.Core.Models.Replay
+```
+
+Inherits all properties from the base `Replay` class, including:
+- `Header` - Replay file header information
+- `Info` - Metadata about the replay
+- `Checkpoints` - Network replay checkpoints
+
+## Properties
+
+<ResponseField name="Eliminations" type="IList<PlayerElimination>">
+  A list of all player elimination events that occurred during the match. Each elimination includes:
+  - Player IDs of eliminated and eliminator
+  - Location and rotation data
+  - Death cause and timestamp
+  - Knock status
+  
+  This property is automatically populated when reading a replay file.
+</ResponseField>
+
+<ResponseField name="Stats" type="Stats">
+  Match statistics for the replay owner, including:
+  - Accuracy
+  - Assists
+  - Eliminations
+  - Weapon damage and other damage
+  - Revives
+  - Damage taken
+  - Damage to structures
+  - Materials gathered and used
+  - Total distance traveled
+  
+  This data is extracted from the match stats event in the replay file.
+</ResponseField>
+
+<ResponseField name="TeamStats" type="TeamStats">
+  Team-level statistics for the replay owner's team:
+  - Final placement/position
+  - Total number of players in the match
+  
+  Available in team-based game modes.
+</ResponseField>
+
+<ResponseField name="GameInformation" type="GameInformation">
+  Comprehensive game state information collected throughout the match:
+  - Player states and locations
+  - Inventory changes
+  - Health updates
+  - Loot pickups
+  - Building data
+  - Safe zone progression
+  - Weapon usage
+  - Vehicle interactions
+  
+  This is the primary container for detailed game events and is populated based on the `ParseType` and `FortniteReplaySettings` used.
+</ResponseField>
+
+## Usage Examples
+
+### Accessing Elimination Data
+
+```csharp
+using FortniteReplayReader;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay");
+
+Console.WriteLine($"Total Eliminations: {replay.Eliminations.Count}");
+
+foreach (var elim in replay.Eliminations)
+{
+    Console.WriteLine($"Elimination at {elim.Timestamp}ms");
+    Console.WriteLine($"  Eliminated: {elim.EliminatedInfo.Id}");
+    Console.WriteLine($"  Eliminator: {elim.EliminatorInfo.Id}");
+    Console.WriteLine($"  Cause: {elim.DeathCause}");
+    Console.WriteLine($"  Knocked: {elim.Knocked}");
+}
+```
+
+### Reading Match Statistics
+
+```csharp
+using FortniteReplayReader;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay");
+
+if (replay.Stats != null)
+{
+    Console.WriteLine("Match Statistics:");
+    Console.WriteLine($"  Eliminations: {replay.Stats.Eliminations}");
+    Console.WriteLine($"  Assists: {replay.Stats.Assists}");
+    Console.WriteLine($"  Accuracy: {replay.Stats.Accuracy:P2}");
+    Console.WriteLine($"  Weapon Damage: {replay.Stats.WeaponDamage}");
+    Console.WriteLine($"  Damage Taken: {replay.Stats.DamageTaken}");
+    Console.WriteLine($"  Materials Gathered: {replay.Stats.MaterialsGathered}");
+    Console.WriteLine($"  Distance Traveled: {replay.Stats.TotalTraveled}m");
+}
+```
+
+### Checking Team Performance
+
+```csharp
+using FortniteReplayReader;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay");
+
+if (replay.TeamStats != null)
+{
+    Console.WriteLine($"Team Placement: #{replay.TeamStats.Position}");
+    Console.WriteLine($"Total Players: {replay.TeamStats.TotalPlayers}");
+}
+```
+
+### Accessing Game Information
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Full
+);
+
+var gameInfo = replay.GameInformation;
+
+// Access player states
+foreach (var player in gameInfo.PlayerStates.Values)
+{
+    Console.WriteLine($"Player: {player.Name}");
+    Console.WriteLine($"  Eliminations: {player.Eliminations}");
+    Console.WriteLine($"  Team Index: {player.TeamIndex}");
+}
+
+// Access safe zones
+foreach (var safeZone in gameInfo.SafeZones)
+{
+    Console.WriteLine($"Safe Zone - Radius: {safeZone.Radius}");
+}
+```
+
+### Working with Replay Header
+
+```csharp
+using FortniteReplayReader;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay("path/to/replay.replay");
+
+// Access inherited Replay properties
+Console.WriteLine($"Game Version: {replay.Header.NetworkVersion}");
+Console.WriteLine($"Friendly Name: {replay.Info.FriendlyName}");
+Console.WriteLine($"Timestamp: {replay.Info.Timestamp}");
+Console.WriteLine($"Length: {replay.Info.LengthInMs}ms");
+Console.WriteLine($"Encrypted: {replay.Info.Encrypted}");
+```
+
+### Complete Analysis Example
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+using System.Linq;
+
+var reader = new ReplayReader();
+var replay = reader.ReadReplay(
+    "path/to/replay.replay",
+    ParseType.Full
+);
+
+Console.WriteLine("=== Replay Analysis ===");
+Console.WriteLine($"Date: {replay.Info.Timestamp}");
+Console.WriteLine($"Duration: {replay.Info.LengthInMs / 1000}s");
+Console.WriteLine();
+
+if (replay.TeamStats != null)
+{
+    Console.WriteLine($"Final Placement: #{replay.TeamStats.Position}");
+}
+
+if (replay.Stats != null)
+{
+    Console.WriteLine($"Eliminations: {replay.Stats.Eliminations}");
+    Console.WriteLine($"Damage Dealt: {replay.Stats.WeaponDamage + replay.Stats.OtherDamage}");
+}
+
+Console.WriteLine();
+Console.WriteLine("=== Elimination Timeline ===");
+var sortedElims = replay.Eliminations.OrderBy(e => e.Timestamp);
+foreach (var elim in sortedElims)
+{
+    var minutes = elim.Timestamp / 60000;
+    var seconds = (elim.Timestamp % 60000) / 1000;
+    Console.WriteLine($"[{minutes}:{seconds:D2}] {elim.EliminatorInfo.Id} eliminated {elim.EliminatedInfo.Id}");
+}
+```
+
+## Notes
+
+- The `Eliminations` list is always populated regardless of `ParseType`
+- `Stats` and `TeamStats` are populated from replay events and may be `null` if the events are not present
+- `GameInformation` content varies significantly based on the `ParseType` and `FortniteReplaySettings` used:
+  - `ParseType.Minimal` - Basic game state only
+  - `ParseType.Normal` - Includes player pawns and pickups
+  - `ParseType.Full` - All available data
+- Properties marked as `internal set` cannot be modified after the replay is parsed
+
+## Related
+
+- [ReplayReader](/api/replay-reader) - Parse replay files to create FortniteReplay instances
+- [FortniteReplaySettings](/api/fortnite-replay-settings) - Configure what data is collected in GameInformation
+- [Getting Started](/introduction) - Basic usage guide

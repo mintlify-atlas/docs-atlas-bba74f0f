@@ -1,0 +1,176 @@
+---
+title: "GameInformation"
+description: "Main container class holding all parsed replay data including players, events, and game state"
+---
+
+The `GameInformation` class is the primary data container returned after parsing a replay. It contains all parsed information including players, teams, eliminations, loot, structures, and game state.
+
+## Overview
+
+After parsing a replay file, the `GameInformation` object provides access to all gameplay data through its public collections and properties.
+
+```csharp
+var replayData = reader.ParseReplay();
+var gameInfo = replayData.GameInformation;
+
+// Access players
+foreach (var player in gameInfo.Players)
+{
+    Console.WriteLine($"{player.DisplayName}: {player.Placement}");
+}
+```
+
+## Properties
+
+<ResponseField name="Players" type="ICollection<Player>" required>
+  Collection of all players in the match. Each player contains detailed information including stats, location history, inventory, and eliminations.
+</ResponseField>
+
+<ResponseField name="Teams" type="ICollection<Team>" required>
+  Collection of all teams in the match with their associated players.
+</ResponseField>
+
+<ResponseField name="KillFeed" type="ICollection<KillFeedEntry>" required>
+  Complete kill feed showing all eliminations, knocks, and player state changes throughout the match in chronological order.
+</ResponseField>
+
+<ResponseField name="GameState" type="GameState" required>
+  Current game state information including match timing, safe zones, tournament info, and session data.
+</ResponseField>
+
+<ResponseField name="SafeZones" type="ICollection<SafeZone>" required>
+  Collection of all storm circles/safe zones throughout the match, including shrink timing and positions.
+</ResponseField>
+
+<ResponseField name="SupplyDrops" type="ICollection<SupplyDrop>" required>
+  All supply drops that spawned during the match with their locations and status (opened, destroyed, etc).
+</ResponseField>
+
+<ResponseField name="Llamas" type="ICollection<Llama>" required>
+  Collection of all Llamas (Supply Drop Llamas) that spawned, with location and opened status.
+</ResponseField>
+
+<ResponseField name="FloorLoot" type="ICollection<InventoryItem>" required>
+  All floor loot items detected during the replay. Requires Full parse mode.
+  
+  <Note>This property requires `ParseMode.Full` to be populated.</Note>
+</ResponseField>
+
+<ResponseField name="PlayerStructures" type="ICollection<PlayerStructure>" required>
+  All player-built structures (walls, floors, ramps, roofs) with location, material type, and health data.
+</ResponseField>
+
+<ResponseField name="Resurrections" type="ICollection<PlayerReboot>" required>
+  All player reboot/resurrection events at reboot vans.
+</ResponseField>
+
+<ResponseField name="StormSurges" type="ICollection<StormSurge>" required>
+  Storm surge events including warning times, damage times, and clear times.
+</ResponseField>
+
+<ResponseField name="Settings" type="FortniteReplaySettings" required>
+  The parsing settings used when reading this replay.
+</ResponseField>
+
+<ResponseField name="MinigameInformation" type="MinigameInformation" required>
+  Creative/minigame specific information including rounds, teams, and scoring. Only populated for Creative mode replays.
+</ResponseField>
+
+<ResponseField name="PlayerStateEncryptionKey" type="EncryptionKey" required>
+  Encryption key used for player state data in encrypted replays.
+</ResponseField>
+
+## Examples
+
+### Accessing Player Data
+
+```csharp
+var gameInfo = replayData.GameInformation;
+
+// Get winning player/team
+var winners = gameInfo.Players
+    .Where(p => p.Placement == 1)
+    .ToList();
+
+foreach (var winner in winners)
+{
+    Console.WriteLine($"Winner: {winner.DisplayName}");
+    Console.WriteLine($"  Kills: {winner.TotalKills}");
+    Console.WriteLine($"  Team: {winner.Teamindex}");
+}
+```
+
+### Analyzing Eliminations
+
+```csharp
+// Get all final eliminations (not knocks)
+var eliminations = gameInfo.KillFeed
+    .Where(k => k.CurrentPlayerState == PlayerState.Killed)
+    .ToList();
+
+Console.WriteLine($"Total Eliminations: {eliminations.Count}");
+
+// Find longest elimination
+var longestElim = gameInfo.KillFeed
+    .Where(k => k.Distance > 0)
+    .OrderByDescending(k => k.Distance)
+    .FirstOrDefault();
+
+if (longestElim != null)
+{
+    Console.WriteLine($"Longest elimination: {longestElim.Distance:F2}m by {longestElim.FinisherOrDowner?.DisplayName}");
+}
+```
+
+### Safe Zone Information
+
+```csharp
+// Analyze storm circles
+foreach (var zone in gameInfo.SafeZones)
+{
+    Console.WriteLine($"Zone: Radius {zone.Radius}m");
+    Console.WriteLine($"  Center: {zone.NextCenter}");
+    Console.WriteLine($"  Shrink Start: {zone.ShrinkStartTime}s");
+    Console.WriteLine($"  Shrink End: {zone.ShringEndTime}s");
+}
+```
+
+### Loot Analysis
+
+```csharp
+// Analyze floor loot (requires Full parse mode)
+if (gameInfo.FloorLoot.Any())
+{
+    var weapons = gameInfo.FloorLoot
+        .Where(i => i.Item.Type == ItemType.Weapon)
+        .GroupBy(i => i.Item.Name)
+        .Select(g => new { Weapon = g.Key, Count = g.Count() })
+        .OrderByDescending(x => x.Count);
+
+    Console.WriteLine("Weapon Spawns:");
+    foreach (var weapon in weapons)
+    {
+        Console.WriteLine($"  {weapon.Weapon}: {weapon.Count}");
+    }
+}
+```
+
+### Supply Drop Tracking
+
+```csharp
+// Track supply drops
+foreach (var drop in gameInfo.SupplyDrops)
+{
+    Console.WriteLine($"Supply Drop at {drop.Location}");
+    Console.WriteLine($"  Spawned: {drop.SpawnTime}s");
+    Console.WriteLine($"  Opened: {drop.Opened}");
+    Console.WriteLine($"  Balloon Popped: {drop.BalloonPopped}");
+}
+```
+
+## Related Models
+
+- [Player](/api/models/player) - Individual player data
+- [GameState](/api/models/game-state) - Match state and timing
+- [PlayerElimination](/api/models/player-elimination) - Elimination event data
+- [Stats](/api/models/stats) - Player and team statistics

@@ -1,0 +1,345 @@
+---
+title: "Player"
+description: "Represents an individual player in the match with all associated data"
+---
+
+The `Player` class contains comprehensive information about a player in the match, including identity, stats, inventory, location history, eliminations, and cosmetics.
+
+## Overview
+
+Each player in the `GameInformation.Players` collection is represented by a `Player` object containing all data tracked for that player throughout the match.
+
+```csharp
+foreach (var player in gameInfo.Players)
+{
+    Console.WriteLine($"{player.DisplayName} ({player.EpicId})");
+    Console.WriteLine($"  Placement: #{player.Placement}");
+    Console.WriteLine($"  Kills: {player.TotalKills}");
+    Console.WriteLine($"  Platform: {player.Platform}");
+}
+```
+
+## Identity Properties
+
+<ResponseField name="DisplayName" type="string" required>
+  Player's display name (decoded from ExternalPlayerData).
+</ResponseField>
+
+<ResponseField name="EpicId" type="string" required>
+  Player's Epic Games account ID.
+</ResponseField>
+
+<ResponseField name="Platform" type="string" required>
+  Platform the player is playing on (e.g., "WIN", "PSN", "XBL", "SWITCH").
+</ResponseField>
+
+<ResponseField name="IsBot" type="bool" required>
+  Whether this player is a bot.
+</ResponseField>
+
+<ResponseField name="BotId" type="string" required>
+  Bot identifier if IsBot is true.
+</ResponseField>
+
+<ResponseField name="IsPlayersReplay" type="bool" required>
+  Whether this player is the one who recorded the replay.
+</ResponseField>
+
+<ResponseField name="AnonMode" type="bool" required>
+  Whether the player is using anonymous mode.
+</ResponseField>
+
+<ResponseField name="StreamerMode" type="bool" required>
+  Whether the player has streamer mode enabled.
+</ResponseField>
+
+## Team & Party
+
+<ResponseField name="Teamindex" type="int" required>
+  The team number this player belongs to.
+</ResponseField>
+
+<ResponseField name="Team" type="Team" required>
+  Reference to the team object containing all team members.
+</ResponseField>
+
+<ResponseField name="PartyOwnerEpicId" type="string" required>
+  Epic ID of the party leader.
+</ResponseField>
+
+## Match Stats
+
+<ResponseField name="Placement" type="int" required>
+  Final placement/rank in the match (1 = Victory Royale).
+</ResponseField>
+
+<ResponseField name="TotalKills" type="uint" required>
+  Total number of eliminations by this player.
+</ResponseField>
+
+<ResponseField name="TeamKills" type="uint" required>
+  Number of team kills (friendly fire).
+</ResponseField>
+
+<ResponseField name="Level" type="int" required>
+  Player's account level.
+</ResponseField>
+
+## Location & Movement
+
+<ResponseField name="Locations" type="List<PlayerLocationRepMovement>" required>
+  Complete location history throughout the match. Each entry contains position, rotation, timestamp, and movement state.
+  
+  <Note>Location tracking depends on parse settings. Use `LocationTypes` to control which players' locations are tracked.</Note>
+</ResponseField>
+
+<ResponseField name="LastKnownLocation" type="PlayerLocationRepMovement" required>
+  Most recent known location of the player.
+</ResponseField>
+
+<ResponseField name="LandingLocation" type="PlayerLocation" required>
+  Location where the player landed after jumping from the battle bus.
+</ResponseField>
+
+<ResponseField name="PrivateTeamLocations" type="List<PlayerLocation>" required>
+  Teammate locations from FortTeamPrivateInfo (visible to squadmates).
+</ResponseField>
+
+<ResponseField name="MovementInformation" type="PlayerMovementInformation" required>
+  Current movement state including:
+  - Skydiving, Crouched, Sprinting
+  - GliderOpen, IsEmoting, IsTargeting
+  - InBus, IsInWater, IsSlopeSliding
+  - MovementStyle
+</ResponseField>
+
+## Inventory & Weapons
+
+<ResponseField name="CurrentInventory" type="NetDeltaArray<InventoryItem>" required>
+  Player's current inventory items.
+  
+  <Note>Requires player perspective replay or server replay. Not available in spectator replays of other players.</Note>
+</ResponseField>
+
+<ResponseField name="InventoryOnDeath" type="List<InventoryItem>" required>
+  Snapshot of inventory at the time of death/elimination.
+</ResponseField>
+
+<ResponseField name="CurrentWeapon" type="Weapon" required>
+  The weapon currently equipped by the player.
+</ResponseField>
+
+<ResponseField name="WeaponSwitches" type="List<WeaponSwitch>" required>
+  Complete history of weapon switches throughout the match with timestamps.
+</ResponseField>
+
+## Combat Data
+
+<ResponseField name="Shots" type="List<WeaponShot>" required>
+  All shots fired by this player, including damage dealt, hit location, and critical hits.
+</ResponseField>
+
+<ResponseField name="DamageTaken" type="List<WeaponShot>" required>
+  All damage received by this player from other players.
+</ResponseField>
+
+<ResponseField name="StatusChanges" type="List<KillFeedEntry>" required>
+  Complete history of player state changes (Alive → Knocked → Killed → Revived).
+</ResponseField>
+
+<ResponseField name="HealthChanges" type="List<HealthUpdate>" required>
+  History of health and shield changes with timestamps.
+</ResponseField>
+
+<ResponseField name="LastDeathOrKnockTime" type="float" required>
+  Game time when the player was last eliminated or knocked.
+</ResponseField>
+
+<ResponseField name="DeathTags" type="FGameplayTag[]" required>
+  Gameplay tags associated with the player's death.
+</ResponseField>
+
+## Cosmetics
+
+<ResponseField name="Cosmetics" type="Cosmetics" required>
+  All equipped cosmetic items including:
+  - Character skin
+  - Backpack (back bling)
+  - Pickaxe
+  - Glider
+  - Dances/Emotes
+  - Item Wraps
+  - Music Pack
+  - Loading Screen
+  - Banner (icon and color)
+  - Pet Skin
+</ResponseField>
+
+## Session Info
+
+<ResponseField name="IsGameSessionOwner" type="bool" required>
+  Whether this player is the game session owner (host).
+</ResponseField>
+
+<ResponseField name="FinishedLoading" type="bool" required>
+  Whether the player finished loading into the match.
+</ResponseField>
+
+<ResponseField name="StartedPlaying" type="bool" required>
+  Whether the player started playing (spawned in).
+</ResponseField>
+
+<ResponseField name="ThankedBusDriver" type="bool" required>
+  Whether the player thanked the battle bus driver.
+</ResponseField>
+
+<ResponseField name="Disconnected" type="bool" required>
+  Whether the player disconnected from the match.
+</ResponseField>
+
+<ResponseField name="WorldPlayerId" type="int" required>
+  Internal player ID used by the game world.
+</ResponseField>
+
+## Examples
+
+### Player Summary
+
+```csharp
+void PrintPlayerSummary(Player player)
+{
+    Console.WriteLine($"===== {player.DisplayName} =====");
+    Console.WriteLine($"Epic ID: {player.EpicId}");
+    Console.WriteLine($"Platform: {player.Platform}");
+    Console.WriteLine($"Team: {player.Teamindex}");
+    Console.WriteLine($"Placement: #{player.Placement}");
+    Console.WriteLine($"Kills: {player.TotalKills}");
+    Console.WriteLine($"Bot: {player.IsBot}");
+    
+    if (player.LandingLocation != null)
+    {
+        Console.WriteLine($"Landed at: {player.LandingLocation.Location}");
+    }
+    
+    Console.WriteLine($"Total Locations Tracked: {player.Locations.Count}");
+    Console.WriteLine($"Shots Fired: {player.Shots.Count}");
+    Console.WriteLine($"Damage Taken: {player.DamageTaken.Count}");
+}
+```
+
+### Combat Analysis
+
+```csharp
+void AnalyzeCombat(Player player)
+{
+    // Calculate accuracy
+    var shotsHit = player.Shots.Count(s => s.HitPlayerPawn != null);
+    var accuracy = player.Shots.Count > 0 
+        ? (double)shotsHit / player.Shots.Count * 100 
+        : 0;
+    
+    Console.WriteLine($"{player.DisplayName} Combat Stats:");
+    Console.WriteLine($"  Accuracy: {accuracy:F1}%");
+    Console.WriteLine($"  Shots Fired: {player.Shots.Count}");
+    Console.WriteLine($"  Shots Hit: {shotsHit}");
+    
+    // Total damage dealt
+    var totalDamage = player.Shots.Sum(s => s.Damage);
+    Console.WriteLine($"  Total Damage: {totalDamage:F0}");
+    
+    // Critical hits
+    var crits = player.Shots.Count(s => s.IsCritical);
+    Console.WriteLine($"  Critical Hits: {crits}");
+}
+```
+
+### Movement Tracking
+
+```csharp
+void TrackMovement(Player player)
+{
+    Console.WriteLine($"Tracking {player.DisplayName} movement:");
+    Console.WriteLine($"Total Locations: {player.Locations.Count}");
+    
+    // Calculate total distance traveled
+    double totalDistance = 0;
+    for (int i = 1; i < player.Locations.Count; i++)
+    {
+        var prev = player.Locations[i - 1].Location;
+        var curr = player.Locations[i].Location;
+        totalDistance += prev.DistanceTo(curr);
+    }
+    
+    Console.WriteLine($"Distance Traveled: {totalDistance / 100:F0}m"); // Convert UU to meters
+    
+    // Landing location
+    if (player.LandingLocation != null)
+    {
+        Console.WriteLine($"Landing: ({player.LandingLocation.Location.X:F0}, {player.LandingLocation.Location.Y:F0})");
+    }
+}
+```
+
+### Inventory Analysis
+
+```csharp
+void ShowInventory(Player player)
+{
+    Console.WriteLine($"{player.DisplayName} Inventory:");
+    
+    foreach (var item in player.CurrentInventory.Items)
+    {
+        Console.WriteLine($"  {item.Item.Name}");
+        Console.WriteLine($"    Count: {item.Count}");
+        Console.WriteLine($"    Ammo: {item.LoadedAmmo}");
+    }
+    
+    if (player.InventoryOnDeath.Any())
+    {
+        Console.WriteLine("\nInventory on Death:");
+        foreach (var item in player.InventoryOnDeath)
+        {
+            Console.WriteLine($"  {item.Item.Name} x{item.Count}");
+        }
+    }
+}
+```
+
+### Status Change Timeline
+
+```csharp
+void ShowStatusTimeline(Player player)
+{
+    Console.WriteLine($"{player.DisplayName} Status Timeline:");
+    
+    foreach (var status in player.StatusChanges)
+    {
+        var time = TimeSpan.FromSeconds(status.DeltaGameTimeSeconds);
+        var stateStr = status.CurrentPlayerState switch
+        {
+            PlayerState.Alive => "Revived",
+            PlayerState.Knocked => "Knocked",
+            PlayerState.Killed => "Eliminated",
+            _ => "Unknown"
+        };
+        
+        Console.WriteLine($"  [{time:mm\\:ss}] {stateStr}");
+        
+        if (status.FinisherOrDowner != null)
+        {
+            Console.WriteLine($"    By: {status.FinisherOrDowner.DisplayName}");
+        }
+        
+        if (status.DeathCause != EDeathCause.EDeathCause_MAX)
+        {
+            Console.WriteLine($"    Cause: {status.DeathCause}");
+        }
+    }
+}
+```
+
+## Related Models
+
+- [GameInformation](/api/models/game-information) - Container for all game data
+- [PlayerElimination](/api/models/player-elimination) - Elimination events
+- [Stats](/api/models/stats) - Player statistics

@@ -1,0 +1,355 @@
+---
+title: Configuration
+description: Configure FortniteReplaySettings to control parsing behavior and optimize performance
+icon: gear
+---
+
+## Overview
+
+The `FortniteReplaySettings` class allows you to customize what data is extracted from replay files. Proper configuration can significantly improve parsing performance and reduce memory usage.
+
+## Creating Settings
+
+Pass settings to the `ReplayReader` constructor:
+
+```csharp
+using FortniteReplayReader;
+using FortniteReplayReader.Models;
+
+var settings = new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.All,
+    LocationChangeDeltaMS = 0,
+    IgnoreHealth = false
+};
+
+var reader = new ReplayReader(null, settings);
+var replay = reader.ReadReplay("replay.replay", ParseType.Full);
+```
+
+## Configuration Properties
+
+### PlayerLocationType
+
+Controls which player locations are tracked during parsing.
+
+```csharp
+public LocationTypes PlayerLocationType { get; set; } = LocationTypes.All;
+```
+
+**Available Options:**
+
+<Tabs>
+  <Tab title="All">
+    Grabs all possible locations from every player in the match.
+
+    ```csharp
+    PlayerLocationType = LocationTypes.All
+    ```
+
+    **Use Case:** Full match analysis, creating heatmaps for all players
+  </Tab>
+  <Tab title="Team">
+    Grabs locations from replay owner and all teammates.
+
+    ```csharp
+    PlayerLocationType = LocationTypes.Team
+    ```
+
+    **Use Case:** Analyzing your team's performance and positioning
+  </Tab>
+  <Tab title="User">
+    Only grabs locations from the replay owner.
+
+    ```csharp
+    PlayerLocationType = LocationTypes.User
+    ```
+
+    **Use Case:** Personal performance tracking
+  </Tab>
+  <Tab title="None">
+    Grabs no locations (significantly improves performance).
+
+    ```csharp
+    PlayerLocationType = LocationTypes.None
+    ```
+
+    **Use Case:** Only need events and stats, not movement data
+  </Tab>
+</Tabs>
+
+<Note>
+Setting `PlayerLocationType` to `None` can improve parsing speed by 30-50% for large replays.
+</Note>
+
+### LocationChangeDeltaMS
+
+Minimum time in milliseconds between saved location updates.
+
+```csharp
+public int LocationChangeDeltaMS { get; set; } = 0;
+```
+
+- **0**: Capture all location updates (default)
+- **> 0**: Only save locations at specified intervals
+
+<CodeGroup>
+```csharp All Locations
+// Capture every location update
+LocationChangeDeltaMS = 0
+```
+
+```csharp Every Second
+// Capture locations every 1 second
+LocationChangeDeltaMS = 1000
+```
+
+```csharp Every 5 Seconds
+// Capture locations every 5 seconds
+LocationChangeDeltaMS = 5000
+```
+</CodeGroup>
+
+<Tip>
+For tracking general player movement, `1000ms` (1 second) intervals are usually sufficient and reduce data size significantly.
+</Tip>
+
+### IgnoreHealth
+
+Skips health and shield updates.
+
+```csharp
+public bool IgnoreHealth { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreHealth = true  // Don't track health changes
+}
+```
+
+**When to use:**
+- You only need location/event data
+- Reduces parsing time for replays with frequent damage
+
+### IgnoreContainers
+
+Skips container (chests, ammo boxes) data.
+
+```csharp
+public bool IgnoreContainers { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreContainers = true  // Don't track container interactions
+}
+```
+
+### IgnoreShots
+
+Skips weapon shot and damage data.
+
+```csharp
+public bool IgnoreShots { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreShots = true  // Don't track shots fired
+}
+```
+
+<Warning>
+Enabling `IgnoreShots` means `player.Shots` and `player.DamageTaken` collections will be empty.
+</Warning>
+
+### IgnoreInventory
+
+Skips inventory tracking.
+
+```csharp
+public bool IgnoreInventory { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreInventory = true  // Don't track inventory changes
+}
+```
+
+**When to use:**
+- Only need location/elimination data
+- Significant performance improvement
+
+### IgnoreFloorLoot
+
+Skips floor loot (dropped items) tracking.
+
+```csharp
+public bool IgnoreFloorLoot { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreFloorLoot = true  // Don't track floor loot
+}
+```
+
+<Note>
+Requires `ParseType.Normal` or higher to have any effect.
+</Note>
+
+### IgnoreWeaponSwitches
+
+Skips tracking when players switch weapons.
+
+```csharp
+public bool IgnoreWeaponSwitches { get; set; }
+```
+
+**Example:**
+
+```csharp
+new FortniteReplaySettings
+{
+    IgnoreWeaponSwitches = true  // Don't track weapon switches
+}
+```
+
+## Configuration Presets
+
+Here are common configuration presets for different use cases:
+
+<AccordionGroup>
+  <Accordion title="Events Only (Fastest)">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.None,
+        IgnoreHealth = true,
+        IgnoreContainers = true,
+        IgnoreShots = true,
+        IgnoreInventory = true,
+        IgnoreFloorLoot = true,
+        IgnoreWeaponSwitches = true
+    };
+
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Minimal);
+    ```
+
+    **Use Case:** Only need eliminations and match stats
+  </Accordion>
+
+  <Accordion title="Personal Tracker">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.User,
+        LocationChangeDeltaMS = 1000,  // 1 second intervals
+        IgnoreFloorLoot = true,
+        IgnoreContainers = true
+    };
+
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Full);
+    ```
+
+    **Use Case:** Track your own performance and stats
+  </Accordion>
+
+  <Accordion title="Team Analysis">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.Team,
+        LocationChangeDeltaMS = 500,
+        IgnoreFloorLoot = true
+    };
+
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Full);
+    ```
+
+    **Use Case:** Analyze team positioning and coordination
+  </Accordion>
+
+  <Accordion title="Full Analysis (Slowest)">
+    ```csharp
+    var settings = new FortniteReplaySettings
+    {
+        PlayerLocationType = LocationTypes.All,
+        LocationChangeDeltaMS = 0,  // All locations
+        IgnoreHealth = false,
+        IgnoreContainers = false,
+        IgnoreShots = false,
+        IgnoreInventory = false,
+        IgnoreFloorLoot = false,
+        IgnoreWeaponSwitches = false
+    };
+
+    var reader = new ReplayReader(null, settings);
+    var replay = reader.ReadReplay(file, ParseType.Full);
+    ```
+
+    **Use Case:** Complete match analysis with all data
+  </Accordion>
+</AccordionGroup>
+
+## Performance Impact
+
+Here's the approximate performance impact of each setting:
+
+| Setting | Performance Gain | Data Lost |
+|---------|------------------|----------|
+| `PlayerLocationType = None` | 🚀 High (30-50%) | Player movement |
+| `LocationChangeDeltaMS = 1000` | 🏃 Medium (15-25%) | Some location precision |
+| `IgnoreFloorLoot = true` | 🏃 Medium (10-20%) | Floor loot tracking |
+| `IgnoreInventory = true` | 🏃 Medium (10-15%) | Inventory changes |
+| `IgnoreShots = true` | 🚶 Low (5-10%) | Shot data |
+| `IgnoreHealth = true` | 🚶 Low (5-10%) | Health updates |
+| `IgnoreWeaponSwitches = true` | 🚶 Low (under 5%) | Weapon switch timing |
+| `IgnoreContainers = true` | 🚶 Low (under 5%) | Container data |
+
+## Example: ConsoleReader Configuration
+
+The ConsoleReader example demonstrates a performance-focused configuration:
+
+```csharp FortniteReplayReader.cs:32-35
+var reader = new ReplayReader(null, new FortniteReplaySettings
+{
+    PlayerLocationType = LocationTypes.None,
+});
+```
+
+This configuration:
+- Skips all location tracking
+- Maximizes parsing speed
+- Still captures events and eliminations
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Performance Optimization" icon="gauge-high" href="/guides/performance-optimization">
+    Learn more optimization techniques
+  </Card>
+  <Card title="Player Data" icon="users" href="/guides/extracting-player-data">
+    Extract and work with player data
+  </Card>
+</CardGroup>
